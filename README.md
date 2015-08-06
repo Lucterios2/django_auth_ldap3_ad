@@ -31,7 +31,7 @@ I started to build my own.
     LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
     LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
 
-### attributes ampping
+### attributes mapping
 
     LDAP_ATTRIBUTES_MAP = {
         'username': 'sAMAccountName',
@@ -39,6 +39,9 @@ I started to build my own.
         'last_name': 'sn',
         'email': 'mail',
     }
+
+### groups mapping to django's groups
+
     LDAP_SUPERUSER_GROUPS = ["CN=admin,dc=domain,dc=local", ]
     LDAP_STAFF_GROUPS = ["CN=staff,dc=domain,dc=local", ]
     LDAP_GROUPS_MAP = {
