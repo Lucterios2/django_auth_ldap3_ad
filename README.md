@@ -47,4 +47,4 @@ I started to build my own.
 
 ### Auth backend setting
 
-AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
+    AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
