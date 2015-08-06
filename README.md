@@ -3,6 +3,11 @@
 considering that I did not find any working auth module for django able to work with MS Active Directory as a LDAP Server,
 I started to build my own.
 
+Once configured as described bellow, the module authenticates users against a single or a pool of LDAP servers and tries
+reconciling the user with the local django database.
+If user does not exists locally, it creates it, else it updates it.
+Moreover, it tries to determine group membership following the rules given in settings.py
+
 ## LDAP CONFIG
 ### servers
 
