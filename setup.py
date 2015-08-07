@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='django-auth-ldap3-ad',
-    version='0.1',
+    version='1.0',
     packages=[''],
     url='https://github.com/Lucterios2/django_auth_ldap3_ad',
     license='GPL V3',
@@ -10,7 +10,7 @@ setup(
     author_email='po.verschoore@sd-libre.fr',
     description='very simple authentication module for python3 / django / LDAP or AD',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Web Environment',
         'Framework :: Django :: 1.8',
         'Intended Audience :: Developers',
