@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name='django-auth-ldap3-ad',
     version='0.1',
-    packages=['django_auth_ldap3_ad'],
+    packages=[''],
     url='https://github.com/Lucterios2/django_auth_ldap3_ad',
     license='GPL V3',
     author='Pierre-Olivier VERSCHOORE',
