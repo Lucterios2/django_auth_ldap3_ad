@@ -4,7 +4,7 @@ setup(
     name='django_auth_ldap3_ad',
     version='0.1',
     packages=['django_auth_ldap3_ad'],
-    url='',
+    url='https://github.com/Lucterios2/django_auth_ldap3_ad',
     license='GPL V3',
     author='Pierre-Olivier VERSCHOORE',
     author_email='po.verschoore@sd-libre.fr',
