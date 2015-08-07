@@ -61,3 +61,5 @@ target/
 
 # PyCharm project
 .idea
+
+register_and_upload_new_version.bat
