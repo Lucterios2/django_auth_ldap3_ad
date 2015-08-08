@@ -49,6 +49,13 @@ Search base is used for every lookups so if you define it to the lower level, al
 Search filters for users and groups enables you to get a second level of filtering by forcing some additional conditions to be true for the object to be taken into account.
 In LDAP, group membership is onwed by groups objects. Depending on the implementation (OpenLDAP, MS Active Directory, others), the attribute of group objects to inspect can differ. You need to determine the good attribute and name it in the LDAP_GROUP_MEMBER_ATTRIBUTE parameter for groups to be well used.
 
+help for filters writing:
+
+- [RedHat/CentOS CDS (based on OpenLDAP)](https://www.centos.org/docs/5/html/CDS/ag/8.0/Finding_Directory_Entries-LDAP_Search_Filters.html)
+- [MS Active Directory](https://msdn.microsoft.com/en-us/library/aa746475%28v=vs.85%29.aspx)
+- [ldapwiki (general LDAP purpose)](http://ldapwiki.willeke.com/wiki/LDAP)
+
+
     LDAP_SEARCH_BASE = "dc=domain,dc=local"
     LDAP_USER_SEARCH_FILTER = "(&(sAMAccountName=%s)(objectClass=user))"
     LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
