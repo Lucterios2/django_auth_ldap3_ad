@@ -20,26 +20,30 @@ List of LDAP server to authenticate against. 3 information are needed for each:
 You can define as many authentication servers as needed (as many as you have in you network) with, for each, it's own parameters.
 The pool is used in the order you defined. If the first one is available, authentication is against it, if the server is not available, the next is used. In all cases, if an answer is received for a server, it's considered authoritative even if it's negative 
 
-    LDAP_SERVERS = [
-        {
-            'host': '<server 1 IP>',
-            'port': 389,
-            'use_ssl': False,
-        },
-        {
-            'host': '<server 2 IP>',
-            'port': 389,
-            'use_ssl': False,
-        },
-    ]
+```python
+LDAP_SERVERS = [
+    {
+        'host': '<server 1 IP>',
+        'port': 389,
+        'use_ssl': False,
+    },
+    {
+        'host': '<server 2 IP>',
+        'port': 389,
+        'use_ssl': False,
+    },
+]
+```
 
 ### user and password to be able to bind and search for users and groups
 
 Mandatory parameter.
 To bind to a LDAP server, we need a fully qualified distinguished name. The user just needs minimal rights to walk through the directory. That's why it is recommended to create a dedicated user with no special rights and no groups to use here.
 
-    LDAP_BIND_USER = "cn=xxx,dc=domain,dc=local"
-    LDAP_BIND_PWD = "pass"
+```python
+LDAP_BIND_USER = "cn=xxx,dc=domain,dc=local"
+LDAP_BIND_PWD = "pass"
+```
 
 ### search parameters
 
@@ -55,37 +59,44 @@ help for filters writing:
 - [MS Active Directory](https://msdn.microsoft.com/en-us/library/aa746475%28v=vs.85%29.aspx)
 - [ldapwiki (general LDAP purpose)](http://ldapwiki.willeke.com/wiki/LDAP)
 
-
-    LDAP_SEARCH_BASE = "dc=domain,dc=local"
-    LDAP_USER_SEARCH_FILTER = "(&(sAMAccountName=%s)(objectClass=user))"
-    LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
-    LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
+```python
+LDAP_SEARCH_BASE = "dc=domain,dc=local"
+LDAP_USER_SEARCH_FILTER = "(&(sAMAccountName=%s)(objectClass=user))"
+LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
+LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
+```
 
 ### attributes mapping
 
 Mandatory parameter.
 As the module uses django's user class to create a "replicate" of the LDAP user to the database, it needs to know which LDAP attribute to map with which django User's attribute (it depends on the implementation and you onw use of it).
 
-    LDAP_ATTRIBUTES_MAP = {
-        'username': 'sAMAccountName',
-        'first_name': 'givenName',
-        'last_name': 'sn',
-        'email': 'mail',
-    }
+```python
+LDAP_ATTRIBUTES_MAP = {
+    'username': 'sAMAccountName',
+    'first_name': 'givenName',
+    'last_name': 'sn',
+    'email': 'mail',
+}
+```
 
 ### groups mapping to django's groups
 
 As django defines 2 special rights outside of the use of groups, the module can bind specific group membership to those 2 special attributes in addition to classical groups binding.
 Not mandatory. It is possible to set those parameters to empty lists or dicts but you wont be able to bind as an admin or staff user because even if you check those rights in the database replica of a user, at the next logon, it will be erased to avoid user to keep rights in your application he does'nt have anymore in you LDAP.
 
-    LDAP_SUPERUSER_GROUPS = ["CN=admin,dc=domain,dc=local", ]
-    LDAP_STAFF_GROUPS = ["CN=staff,dc=domain,dc=local", ]
-    LDAP_GROUPS_MAP = {
-        'my django group': "cn=my ldap group,dc=domain,dc=local",
-    }
+```python
+LDAP_SUPERUSER_GROUPS = ["CN=admin,dc=domain,dc=local", ]
+LDAP_STAFF_GROUPS = ["CN=staff,dc=domain,dc=local", ]
+LDAP_GROUPS_MAP = {
+    'my django group': "cn=my ldap group,dc=domain,dc=local",
+}
+```
 
 ### Auth backend setting
 
 Mandatory parameter to tell django to use this module as it's authentication backend. See django's documentation to use it in an authentication chain. The example shows how to set it as the only authoritative authentication backend.
 
-    AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
+```python
+AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
+```
