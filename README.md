@@ -62,8 +62,6 @@ help for filters writing:
 ```python
 LDAP_SEARCH_BASE = "dc=domain,dc=local"
 LDAP_USER_SEARCH_FILTER = "(&(sAMAccountName=%s)(objectClass=user))"
-LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
-LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
 ```
 
 ### attributes mapping
@@ -82,10 +80,14 @@ LDAP_ATTRIBUTES_MAP = {
 
 ### groups mapping to django's groups
 
+First parameter of this group enables to use LDAP group binding or disable it to use local database groups only. A the first release of this module does have this parameter, for reverse compatibility, if this parameter does not exists, it is considered true. If it is configured to false, other parameters of this group wont be used nor checked.
 As django defines 2 special rights outside of the use of groups, the module can bind specific group membership to those 2 special attributes in addition to classical groups binding.
-Not mandatory. It is possible to set those parameters to empty lists or dicts but you wont be able to bind as an admin or staff user because even if you check those rights in the database replica of a user, at the next logon, it will be erased to avoid user to keep rights in your application he does'nt have anymore in you LDAP.
+If superuser and staff parameters are not present, not a list or an empty list, those parameters are skipped. This way, you can use LDAP groups for "classical groups" and define manually in the database who will be superuser or staff user.
 
 ```python
+LDAP_USE_LDAP_GROUPS = True
+LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
+LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
 LDAP_SUPERUSER_GROUPS = ["CN=admin,dc=domain,dc=local", ]
 LDAP_STAFF_GROUPS = ["CN=staff,dc=domain,dc=local", ]
 LDAP_GROUPS_MAP = {
