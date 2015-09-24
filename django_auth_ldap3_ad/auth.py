@@ -113,7 +113,9 @@ class LDAP3ADBackend(object):
                         grp.save()
 
                     # then re-fill
-                    con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_GROUPS_SEARCH_FILTER,
+                    con.search(settings.LDAP_GROUPS_SEARCH_BASE if hasattr(settings, 'LDAP_GROUPS_SEARCH_BASE')
+                               else settings.LDAP_SEARCH_BASE,
+                               settings.LDAP_GROUPS_SEARCH_FILTER,
                                attributes=['cn', settings.LDAP_GROUP_MEMBER_ATTRIBUTE])
                     if len(con.response) > 0:
                         for resp in con.response:
