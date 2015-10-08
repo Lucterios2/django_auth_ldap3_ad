@@ -99,7 +99,7 @@ class LDAP3ADBackend(object):
             if con.bind():
                 try:
                     # try to retrieve user from database and update it
-                    usr = User.objects.get(username=username)
+                    usr = User.objects.get(username__iexact=username)
                 except User.DoesNotExist:
                     # user does not exist in database already, create it
                     usr = User()
