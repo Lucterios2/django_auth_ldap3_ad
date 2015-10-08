@@ -37,8 +37,14 @@ class LDAP3ADBackend(object):
     It's groups are also examined to enable auto binding to local django groups.
     """
 
+    # server pool
+    pool = None
+
+    # do we use LDAP Groups?
+    use_groups = False
+
     @staticmethod
-    def authenticate(username=None, password=None):
+    def init_and_get_ldap_user(username):
         # check configuration
         if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER')
                 and hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE')
@@ -48,36 +54,46 @@ class LDAP3ADBackend(object):
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
         # comportment after updates.
-        LDAP_USE_LDAP_GROUPS = False
         if not hasattr(settings, 'LDAP_USE_LDAP_GROUPS') or not isinstance(settings.LDAP_USE_LDAP_GROUPS, bool):
-            LDAP_USE_LDAP_GROUPS = True
+            LDAP3ADBackend.use_groups = True
 
-        if LDAP_USE_LDAP_GROUPS and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER')
-                                         and hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE')
-                                         and hasattr(settings, 'LDAP_GROUPS_MAP')):
+        if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER')
+                                              and hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE')
+                                              and hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
 
         # first: build server pool from settings
-        pool = ServerPool(None, pool_strategy=FIRST, active=True)
-        for srv in settings.LDAP_SERVERS:
-            server = Server(srv['host'], srv['port'], srv['use_ssl'])
-            pool.add(server)
+        if LDAP3ADBackend.pool is None:
+            LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
+            for srv in settings.LDAP_SERVERS:
+                server = Server(srv['host'], srv['port'], srv['use_ssl'])
+                LDAP3ADBackend.pool.add(server)
 
         # then, try to connect with user/pass from settings
-        con = Connection(pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
+        con = Connection(LDAP3ADBackend.pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=settings.LDAP_BIND_PWD, authentication=SIMPLE, check_names=True)
 
         # search for the desired user
+        user_dn = None
+        user_attribs = None
         con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_USER_SEARCH_FILTER % username,
                    attributes=list(settings.LDAP_ATTRIBUTES_MAP.values()))
         if con.result['result'] == 0 and len(con.response) > 0 and 'dn' in con.response[0].keys():
             user_dn = con.response[0]['dn']
             user_attribs = con.response[0]['attributes']
-            con.unbind()
+        con.unbind()
+        return user_dn, user_attribs
 
+    @staticmethod
+    def authenticate(username=None, password=None):
+        if username is None:
+            return None
+
+        user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
+        if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
-            con = Connection(pool, user=user_dn, password=password)
+            con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
             if con.bind():
                 try:
                     # try to retrieve user from database and update it
@@ -92,7 +108,7 @@ class LDAP3ADBackend(object):
                 usr.save()
 
                 # if we want to use LDAP group membership:
-                if LDAP_USE_LDAP_GROUPS:
+                if LDAP3ADBackend.use_groups:
                     # check for groups membership
                     # first cleanup
                     alter_superuser_membership = False
@@ -139,7 +155,7 @@ class LDAP3ADBackend(object):
                     usr.save()
                 return usr
 
-        con.unbind()
+            con.unbind()
         return None
 
     @staticmethod
@@ -158,3 +174,15 @@ class LDAP3ADBackend(object):
                         and hasattr(user, attr):
                     setattr(user, attr, attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0])
         return user
+    #
+    # @staticmethod
+    # def change_password(username, old_password, new_password):
+    #     user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
+    #     if user_dn is not None:
+    #         print(user_dn)
+    #         con = Connection(LDAP3ADBackend.pool, user=user_dn, password=old_password)
+    #         if con.bind():
+    #             con.extend.standard.modify_password(user_dn, old_password, new_password.encode('utf-8'), 'md5')
+    #             return True
+    #
+    #         return False
