@@ -81,11 +81,13 @@ LDAP_ATTRIBUTES_MAP = {
 ### groups mapping to django's groups
 
 First parameter of this group enables to use LDAP group binding or disable it to use local database groups only. A the first release of this module does have this parameter, for reverse compatibility, if this parameter does not exists, it is considered true. If it is configured to false, other parameters of this group wont be used nor checked.
+If LDAP_GROUPS_SEARCH_BASE is not defined LDAP_SEARCH_BASE will be used as base for group lookup.
 As django defines 2 special rights outside of the use of groups, the module can bind specific group membership to those 2 special attributes in addition to classical groups binding.
 If superuser and staff parameters are not present, not a list or an empty list, those parameters are skipped. This way, you can use LDAP groups for "classical groups" and define manually in the database who will be superuser or staff user.
 
 ```python
 LDAP_USE_LDAP_GROUPS = True
+LDAP_GROUPS_SEARCH_BASE = "dc=domain,dc=local"
 LDAP_GROUPS_SEARCH_FILTER = "(&(objectClass=group))"
 LDAP_GROUP_MEMBER_ATTRIBUTE = "member"
 LDAP_SUPERUSER_GROUPS = ["CN=admin,dc=domain,dc=local", ]

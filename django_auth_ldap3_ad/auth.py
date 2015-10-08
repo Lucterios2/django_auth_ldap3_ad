@@ -48,8 +48,9 @@ class LDAP3ADBackend(object):
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
         # comportment after updates.
-        LDAP_USE_LDAP_GROUPS = False
-        if not hasattr(settings, 'LDAP_USE_LDAP_GROUPS') or not isinstance(settings.LDAP_USE_LDAP_GROUPS, bool):
+        if hasattr(settings, 'LDAP_USE_LDAP_GROUPS') and isinstance(settings.LDAP_USE_LDAP_GROUPS, bool):
+            LDAP_USE_LDAP_GROUPS = settings.LDAP_USE_LDAP_GROUPS
+        else:
             LDAP_USE_LDAP_GROUPS = True
 
         if LDAP_USE_LDAP_GROUPS and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER')
@@ -113,7 +114,9 @@ class LDAP3ADBackend(object):
                         grp.save()
 
                     # then re-fill
-                    con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_GROUPS_SEARCH_FILTER,
+                    con.search(settings.LDAP_GROUPS_SEARCH_BASE if hasattr(settings, 'LDAP_GROUPS_SEARCH_BASE')
+                               else settings.LDAP_SEARCH_BASE,
+                               settings.LDAP_GROUPS_SEARCH_FILTER,
                                attributes=['cn', settings.LDAP_GROUP_MEMBER_ATTRIBUTE])
                     if len(con.response) > 0:
                         for resp in con.response:
