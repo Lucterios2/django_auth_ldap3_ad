@@ -26,6 +26,7 @@ from django.conf import settings
 from django.contrib.auth.models import User, Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
+from django.shortcuts import get_object_or_404
 
 
 class LDAP3ADBackend(object):
@@ -151,13 +152,18 @@ class LDAP3ADBackend(object):
                                 for grp in settings.LDAP_GROUPS_MAP.keys():
                                     if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                                         try:
+                                            print(grp)
                                             group = Group.objects.get(name=grp)
                                             group.user_set.add(usr)
                                             group.save()
                                         except ObjectDoesNotExist:
                                             pass
                     usr.save()
-                return usr
+
+                con.unbind()
+
+                # force reload the user to apply rights
+                return User.objects.get(pk=usr.pk)
 
             con.unbind()
         return None
