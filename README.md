@@ -78,6 +78,15 @@ LDAP_ATTRIBUTES_MAP = {
 }
 ```
 
+### minimal group membership
+
+If this parameter is set, the module takes care that each connected user is member of this groups whereas you want to use LDAP groups or not.
+
+```python
+LDAP_MIN_GROUPS = ["MyDjangoGroup", ]
+```
+
+
 ### groups mapping to django's groups
 
 First parameter of this group enables to use LDAP group binding or disable it to use local database groups only. A the first release of this module does have this parameter, for reverse compatibility, if this parameter does not exists, it is considered true. If it is configured to false, other parameters of this group wont be used nor checked.

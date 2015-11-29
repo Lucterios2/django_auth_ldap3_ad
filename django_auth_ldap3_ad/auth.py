@@ -26,12 +26,12 @@ from django.conf import settings
 from django.contrib.auth.models import User, Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
-from django.shortcuts import get_object_or_404
+from datetime import datetime
 
 
 class LDAP3ADBackend(object):
     """
-    Authenticate against Activie directory or other LDAP server
+    Authenticate against Active directory or other LDAP server
 
     Once the user authenticated and retrieved from LDAP, the corresponding local user is created
 
@@ -47,10 +47,9 @@ class LDAP3ADBackend(object):
     @staticmethod
     def init_and_get_ldap_user(username):
         # check configuration
-        if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER')
-                and hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE')
-                and hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
-
+        if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER') and
+                hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
+                hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
             raise ImproperlyConfigured()
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
@@ -60,9 +59,9 @@ class LDAP3ADBackend(object):
         else:
             LDAP3ADBackend.use_groups = True
 
-        if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER')
-                                              and hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE')
-                                              and hasattr(settings, 'LDAP_GROUPS_MAP')):
+        if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER') and
+                                              hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
+                                              hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
 
         # first: build server pool from settings
@@ -87,6 +86,13 @@ class LDAP3ADBackend(object):
         con.unbind()
         return user_dn, user_attribs
 
+    """
+    Authentication method for Django against AD/LDAP
+    First, retrieve the user's DN based on it's username
+    then, try to authenticate against the LDAP server pool using the DN and password.
+    If ok, update user's attributes with LDAP ones and, if configured, update the group list.
+    Finally, if setup, adds the minimal group membership common to all users
+    """
     @staticmethod
     def authenticate(username=None, password=None):
         if username is None:
@@ -98,6 +104,7 @@ class LDAP3ADBackend(object):
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
             con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
             if con.bind():
+                print("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
                 try:
                     # try to retrieve user from database and update it
                     usr = User.objects.get(username__iexact=username)
@@ -106,27 +113,29 @@ class LDAP3ADBackend(object):
                     usr = User()
 
                 # update existing or new user with LDAP data
-                usr = LDAP3ADBackend.update_user(usr, user_attribs)
+                LDAP3ADBackend.update_user(usr, user_attribs)
                 usr.set_password(password)
                 usr.save()
 
                 # if we want to use LDAP group membership:
                 if LDAP3ADBackend.use_groups:
+                    print("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
                     # check for groups membership
                     # first cleanup
                     alter_superuser_membership = False
-                    if hasattr(settings, 'LDAP_SUPERUSER_GROUPS') and isinstance(settings.LDAP_SUPERUSER_GROUPS, list)\
-                       and len(settings.LDAP_SUPERUSER_GROUPS) > 0:
+                    if hasattr(settings, 'LDAP_SUPERUSER_GROUPS') and isinstance(settings.LDAP_SUPERUSER_GROUPS, list) \
+                            and len(settings.LDAP_SUPERUSER_GROUPS) > 0:
                         usr.is_superuser = False
                         alter_superuser_membership = True
 
                     alter_staff_membership = False
-                    if hasattr(settings, 'LDAP_STAFF_GROUPS') and isinstance(settings.LDAP_STAFF_GROUPS, list)\
-                       and len(settings.LDAP_STAFF_GROUPS) > 0:
+                    if hasattr(settings, 'LDAP_STAFF_GROUPS') and isinstance(settings.LDAP_STAFF_GROUPS, list) \
+                            and len(settings.LDAP_STAFF_GROUPS) > 0:
                         usr.is_staff = False
                         alter_staff_membership = True
 
                     usr.save()
+                    print("AUDIT LOGIN FOR: %s AT %s CLEANING OLD GROUP MEMBERSHIP" % (username, datetime.now()))
                     for grp in Group.objects.all():
                         grp.user_set.remove(usr)
                         grp.save()
@@ -140,32 +149,56 @@ class LDAP3ADBackend(object):
                         for resp in con.response:
                             if 'attributes' in resp and settings.LDAP_GROUP_MEMBER_ATTRIBUTE in resp['attributes'] \
                                     and user_dn in resp['attributes'][settings.LDAP_GROUP_MEMBER_ATTRIBUTE]:
+
+                                print("AUDIT LOGIN FOR: %s AT %s DETECTED IN GROUP %s" %
+                                      (username, datetime.now(), resp['dn']))
                                 # special super user group
                                 if alter_superuser_membership:
                                     if resp['dn'] in settings.LDAP_SUPERUSER_GROUPS:
                                         usr.is_superuser = True
+                                        print("AUDIT LOGIN FOR: %s AT %s GRANTING ADMIN RIGHTS" %
+                                              (username, datetime.now()))
+                                    else:
+                                        print("AUDIT LOGIN FOR: %s AT %s DENY ADMIN RIGHTS" %
+                                              (username, datetime.now()))
                                 # special staff group
                                 if alter_staff_membership:
                                     if resp['dn'] in settings.LDAP_STAFF_GROUPS:
                                         usr.is_staff = True
+                                        print("AUDIT LOGIN FOR: %s AT %s GRANTING STAFF RIGHTS" %
+                                              (username, datetime.now()))
+                                    else:
+                                        print("AUDIT LOGIN FOR: %s AT %s DENY STAFF RIGHTS" %
+                                              (username, datetime.now()))
                                 # other groups membership
                                 for grp in settings.LDAP_GROUPS_MAP.keys():
                                     if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                                         try:
                                             print(grp)
-                                            group = Group.objects.get(name=grp)
-                                            group.user_set.add(usr)
-                                            group.save()
+                                            usr.groups.add(Group.objects.get(name=grp))
+                                            print("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MEMBERSHIP" %
+                                                  (username, datetime.now(), grp))
                                         except ObjectDoesNotExist:
                                             pass
                     usr.save()
 
                 con.unbind()
 
-                # force reload the user to apply rights
-                return User.objects.get(pk=usr.pk)
+                # if set, apply min group membership
+                print("AUDIT LOGIN FOR: %s AT %s BEFORE MIN GROUP MEMBERSHIP" %
+                      (username, datetime.now()))
+                if hasattr(settings, 'LDAP_MIN_GROUPS'):
+                    for grp in settings.LDAP_MIN_GROUPS:
+                        print("AUDIT LOGIN FOR: %s AT %s MIN GROUP MEMBERSHIP: %s" %
+                              (username, datetime.now(), grp))
+                        try:
+                            usr.groups.add(Group.objects.get(name=grp))
+                            print("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MIN MEMBERSHIP" %
+                                  (username, datetime.now(), grp))
+                        except ObjectDoesNotExist:
+                            pass
 
-            con.unbind()
+                return usr
         return None
 
     @staticmethod
@@ -175,6 +208,27 @@ class LDAP3ADBackend(object):
         except User.DoesNotExist:
             return None
 
+    """
+    After many and many tries, it seems that, even if I use the default users and groups objects, Django does not
+    give the good permission to non admin users.
+    That's why there is now a minimalistic has_perm method.
+    """
+    @staticmethod
+    def has_perm(user, perm, obj=None):
+        mod, code = perm.split('.')
+        for perm in user.user_permissions.all():
+            if perm.codename == code and perm.content_type.app_label == mod:
+                return True
+
+        for grp in user.groups.all():
+            for perm in grp.permissions.all():
+                if perm.codename == code and perm.content_type.app_label == mod:
+                    return True
+        return False
+
+    """
+    Update user's attributes in DB from LDAP attributes
+    """
     @staticmethod
     def update_user(user, attributes):
         if user is not None:
@@ -183,16 +237,4 @@ class LDAP3ADBackend(object):
                         and len(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]) >= 1 \
                         and hasattr(user, attr):
                     setattr(user, attr, attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0])
-        return user
-    #
-    # @staticmethod
-    # def change_password(username, old_password, new_password):
-    #     user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
-    #     if user_dn is not None:
-    #         print(user_dn)
-    #         con = Connection(LDAP3ADBackend.pool, user=user_dn, password=old_password)
-    #         if con.bind():
-    #             con.extend.standard.modify_password(user_dn, old_password, new_password.encode('utf-8'), 'md5')
-    #             return True
-    #
-    #         return False
+        user.save()
