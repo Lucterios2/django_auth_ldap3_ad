@@ -23,7 +23,8 @@ along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from django.conf import settings
-from django.contrib.auth.models import User, Group
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
@@ -104,13 +105,14 @@ class LDAP3ADBackend(object):
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
             con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
             if con.bind():
+                user_model = get_user_model()
                 print("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
                 try:
                     # try to retrieve user from database and update it
-                    usr = User.objects.get(username__iexact=username)
-                except User.DoesNotExist:
+                    usr = user_model.objects.get(username__iexact=username)
+                except user_model.DoesNotExist:
                     # user does not exist in database already, create it
-                    usr = User()
+                    usr = user_model()
 
                 # update existing or new user with LDAP data
                 LDAP3ADBackend.update_user(usr, user_attribs)
@@ -203,9 +205,10 @@ class LDAP3ADBackend(object):
 
     @staticmethod
     def get_user(user_id):
+        user_model = get_user_model()
         try:
-            return User.objects.get(pk=user_id)
-        except User.DoesNotExist:
+            return user_model.objects.get(pk=user_id)
+        except user_model.DoesNotExist:
             return None
 
     """
