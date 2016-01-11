@@ -60,10 +60,20 @@ class LDAP3ADBackend(object):
         else:
             LDAP3ADBackend.use_groups = True
 
+        # Check if all group settings, build LDAP query and combine with LDAP_GROUPS_SEARCH_FILTER
         if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER') and
                                               hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
                                               hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
+        else:
+            all_ldap_groups = []
+            for group in settings.LDAP_SUPERUSER_GROUPS +\
+                         settings.LDAP_STAFF_GROUPS +\
+                         list(settings.LDAP_GROUPS_MAP.values()):
+                all_ldap_groups.append("(distinguishedName={0})".format(group))
+
+            if len(all_ldap_groups) > 0:
+                settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER, "".join(all_ldap_groups))
 
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
