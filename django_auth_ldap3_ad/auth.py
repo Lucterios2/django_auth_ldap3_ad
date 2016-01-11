@@ -28,6 +28,9 @@ from django.contrib.auth.models import Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class LDAP3ADBackend(object):
@@ -116,7 +119,7 @@ class LDAP3ADBackend(object):
             con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
             if con.bind():
                 user_model = get_user_model()
-                print("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
+                logger.info("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
                 try:
                     # try to retrieve user from database and update it
                     usr = user_model.objects.get(username__iexact=username)
@@ -131,7 +134,7 @@ class LDAP3ADBackend(object):
 
                 # if we want to use LDAP group membership:
                 if LDAP3ADBackend.use_groups:
-                    print("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
+                    logger.info("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
                     # check for groups membership
                     # first cleanup
                     alter_superuser_membership = False
@@ -147,7 +150,7 @@ class LDAP3ADBackend(object):
                         alter_staff_membership = True
 
                     usr.save()
-                    print("AUDIT LOGIN FOR: %s AT %s CLEANING OLD GROUP MEMBERSHIP" % (username, datetime.now()))
+                    logger.info("AUDIT LOGIN FOR: %s AT %s CLEANING OLD GROUP MEMBERSHIP" % (username, datetime.now()))
                     for grp in Group.objects.all():
                         grp.user_set.remove(usr)
                         grp.save()
@@ -162,33 +165,33 @@ class LDAP3ADBackend(object):
                             if 'attributes' in resp and settings.LDAP_GROUP_MEMBER_ATTRIBUTE in resp['attributes'] \
                                     and user_dn in resp['attributes'][settings.LDAP_GROUP_MEMBER_ATTRIBUTE]:
 
-                                print("AUDIT LOGIN FOR: %s AT %s DETECTED IN GROUP %s" %
+                                logger.info("AUDIT LOGIN FOR: %s AT %s DETECTED IN GROUP %s" %
                                       (username, datetime.now(), resp['dn']))
                                 # special super user group
                                 if alter_superuser_membership:
                                     if resp['dn'] in settings.LDAP_SUPERUSER_GROUPS:
                                         usr.is_superuser = True
-                                        print("AUDIT LOGIN FOR: %s AT %s GRANTING ADMIN RIGHTS" %
+                                        logger.info("AUDIT LOGIN FOR: %s AT %s GRANTING ADMIN RIGHTS" %
                                               (username, datetime.now()))
                                     else:
-                                        print("AUDIT LOGIN FOR: %s AT %s DENY ADMIN RIGHTS" %
+                                        logger.info("AUDIT LOGIN FOR: %s AT %s DENY ADMIN RIGHTS" %
                                               (username, datetime.now()))
                                 # special staff group
                                 if alter_staff_membership:
                                     if resp['dn'] in settings.LDAP_STAFF_GROUPS:
                                         usr.is_staff = True
-                                        print("AUDIT LOGIN FOR: %s AT %s GRANTING STAFF RIGHTS" %
+                                        logger.info("AUDIT LOGIN FOR: %s AT %s GRANTING STAFF RIGHTS" %
                                               (username, datetime.now()))
                                     else:
-                                        print("AUDIT LOGIN FOR: %s AT %s DENY STAFF RIGHTS" %
+                                        logger.info("AUDIT LOGIN FOR: %s AT %s DENY STAFF RIGHTS" %
                                               (username, datetime.now()))
                                 # other groups membership
                                 for grp in settings.LDAP_GROUPS_MAP.keys():
                                     if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                                         try:
-                                            print(grp)
+                                            logger.info(grp)
                                             usr.groups.add(Group.objects.get(name=grp))
-                                            print("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MEMBERSHIP" %
+                                            logger.info("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MEMBERSHIP" %
                                                   (username, datetime.now(), grp))
                                         except ObjectDoesNotExist:
                                             pass
@@ -197,15 +200,15 @@ class LDAP3ADBackend(object):
                 con.unbind()
 
                 # if set, apply min group membership
-                print("AUDIT LOGIN FOR: %s AT %s BEFORE MIN GROUP MEMBERSHIP" %
+                logger.info("AUDIT LOGIN FOR: %s AT %s BEFORE MIN GROUP MEMBERSHIP" %
                       (username, datetime.now()))
                 if hasattr(settings, 'LDAP_MIN_GROUPS'):
                     for grp in settings.LDAP_MIN_GROUPS:
-                        print("AUDIT LOGIN FOR: %s AT %s MIN GROUP MEMBERSHIP: %s" %
+                        logger.info("AUDIT LOGIN FOR: %s AT %s MIN GROUP MEMBERSHIP: %s" %
                               (username, datetime.now(), grp))
                         try:
                             usr.groups.add(Group.objects.get(name=grp))
-                            print("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MIN MEMBERSHIP" %
+                            logger.info("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MIN MEMBERSHIP" %
                                   (username, datetime.now(), grp))
                         except ObjectDoesNotExist:
                             pass
