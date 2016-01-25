@@ -52,8 +52,8 @@ class LDAP3ADBackend(object):
     def init_and_get_ldap_user(username):
         # check configuration
         if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER') and
-                hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
-                hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
+                    hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
+                    hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
             raise ImproperlyConfigured()
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
@@ -64,9 +64,24 @@ class LDAP3ADBackend(object):
             LDAP3ADBackend.use_groups = True
 
         if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER') and
-                                              hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
-                                              hasattr(settings, 'LDAP_GROUPS_MAP')):
+                                                  hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
+                                                  hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
+
+        # inspired from
+        # https://github.com/Lucterios2/django_auth_ldap3_ad/commit/ce24d4687f85ed12a0c4c796022ae7dcb3ff38e3
+        # by jobec
+        all_ldap_groups = []
+        for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
+                settings.LDAP_GROUPS_MAP.values()):
+            # all_ldap_groups.append("(distinguishedName={0})".format(group))
+            all_ldap_groups.append("(distinguishedName={0})".format(group))
+
+            if len(all_ldap_groups) > 0:
+                settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
+                                                                           "".join(all_ldap_groups))
+        # end
+
 
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
@@ -97,6 +112,7 @@ class LDAP3ADBackend(object):
     If ok, update user's attributes with LDAP ones and, if configured, update the group list.
     Finally, if setup, adds the minimal group membership common to all users
     """
+
     @staticmethod
     def authenticate(username=None, password=None):
         if username is None:
@@ -219,6 +235,7 @@ class LDAP3ADBackend(object):
     give the good permission to non admin users.
     That's why there is now a minimalistic has_perm method.
     """
+
     @staticmethod
     def has_perm(user, perm, obj=None):
         mod, code = perm.split('.')
@@ -235,6 +252,7 @@ class LDAP3ADBackend(object):
     """
     Update user's attributes in DB from LDAP attributes
     """
+
     @staticmethod
     def update_user(user, attributes):
         if user is not None:
