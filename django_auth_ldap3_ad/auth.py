@@ -77,9 +77,9 @@ class LDAP3ADBackend(object):
             # all_ldap_groups.append("(distinguishedName={0})".format(group))
             all_ldap_groups.append("(distinguishedName={0})".format(group))
 
-            if len(all_ldap_groups) > 0:
-                settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
-                                                                           "".join(all_ldap_groups))
+        if len(all_ldap_groups) > 0:
+            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
+                                                                       "".join(all_ldap_groups))
         # end
 
 
