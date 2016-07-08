@@ -29,8 +29,23 @@ from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
 import logging
+from django.contrib.auth.signals import user_logged_in
 
 logger = logging.getLogger(__name__)
+
+
+def user_logged_in_handler(sender, request, user, **kwargs):
+    """
+    in authenticate method, the request is not available so, the session engine is either not available.
+    By using this signal binding, we can get the special attributes added to the object by the authenticate
+    method and save them in the current session
+    """
+    if 'dn' in user.__dict__ and user.dn is not None:
+        request.session['LDAP_USER_DN'] = user.dn
+    if 'bu' in user.__dict__ and user.bu is not None:
+        request.session['LDAP_USER_BU'] = user.bu
+
+user_logged_in.connect(user_logged_in_handler)
 
 
 class LDAP3ADBackend(object):
@@ -50,10 +65,13 @@ class LDAP3ADBackend(object):
 
     @staticmethod
     def init_and_get_ldap_user(username):
+        if username is None or username == '':
+            return None, None
+
         # check configuration
         if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER') and
-                    hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
-                    hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
+                hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
+                hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
             raise ImproperlyConfigured()
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
@@ -64,8 +82,8 @@ class LDAP3ADBackend(object):
             LDAP3ADBackend.use_groups = True
 
         if LDAP3ADBackend.use_groups and not (hasattr(settings, 'LDAP_GROUPS_SEARCH_FILTER') and
-                                                  hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
-                                                  hasattr(settings, 'LDAP_GROUPS_MAP')):
+                                              hasattr(settings, 'LDAP_GROUP_MEMBER_ATTRIBUTE') and
+                                              hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
 
         # inspired from
@@ -74,14 +92,12 @@ class LDAP3ADBackend(object):
         all_ldap_groups = []
         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
                 settings.LDAP_GROUPS_MAP.values()):
-            # all_ldap_groups.append("(distinguishedName={0})".format(group))
             all_ldap_groups.append("(distinguishedName={0})".format(group))
 
         if len(all_ldap_groups) > 0:
             settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
                                                                        "".join(all_ldap_groups))
         # end
-
 
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
@@ -115,7 +131,7 @@ class LDAP3ADBackend(object):
 
     @staticmethod
     def authenticate(username=None, password=None):
-        if username is None:
+        if username is None or username == '':
             return None
 
         user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
@@ -126,6 +142,13 @@ class LDAP3ADBackend(object):
             if con.bind():
                 logger.info("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
                 user_model = get_user_model()
+
+                """
+                We add special attributes only during the authentication process to store user DN & Business Unit
+                Those attributes are saved in the current session by the user_logged_in_handler
+                """
+                user_model.dn = lambda: None
+                user_model.bu = lambda: None
                 try:
                     # try to retrieve user from database and update it
                     usr = user_model.objects.get(username__iexact=username)
@@ -218,6 +241,20 @@ class LDAP3ADBackend(object):
                                         (username, datetime.now(), grp))
                         except ObjectDoesNotExist:
                             pass
+
+                # if you want to be able to get full user DN from session, store it
+                if hasattr(settings, 'LDAP_STORE_USER_DN') \
+                        and isinstance(settings.LDAP_USE_LDAP_GROUPS, bool) \
+                        and settings.LDAP_USE_LDAP_GROUPS:
+                    usr.dn = user_dn
+
+                # if you want to know in which business unit the user is, check it
+                if hasattr(settings, 'LDAP_STORE_BUSINESS_UNIT') \
+                        and isinstance(settings.LDAP_STORE_BUSINESS_UNIT, dict):
+                    user_bu = ','.join(user_dn.split(',')[1:])
+
+                    if user_bu in settings.LDAP_STORE_BUSINESS_UNIT:
+                        usr.bu = settings.LDAP_STORE_BUSINESS_UNIT[user_bu]
 
                 return usr
         return None

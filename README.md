@@ -107,6 +107,38 @@ LDAP_GROUPS_MAP = {
 }
 ```
 
+### Store user DN in session for future use
+
+You can ask this backend to store the LDAP user DN in the current session to be able to use it in another app.
+
+```python
+LDAP_STORE_USER_DN = True
+```
+
+You will retrieve the value in the session this way:
+
+```python
+request.session['LDAP_USER_DN']
+```
+
+### Determine and store user business unit in session for future use
+
+You can ask this backend to determine and store the business unit of the user in the current session to be able to use it in another app.
+To do so, you need to set a dict in your settings to bind LDAP Organisational Unit to your own business unit codes
+
+```python
+LDAP_STORE_BUSINESS_UNIT = {
+    'OU=myOU1,DC=mydom,DC=local' = 'myBU1',
+    'OU=myOU2,DC=mydom,DC=local' = 'myBU2',
+}
+```
+
+You will retrieve your BU code in the session this way:
+
+```python
+request.session['LDAP_USER_BU']
+```
+
 ### Auth backend setting
 
 Mandatory parameter to tell django to use this module as it's authentication backend. See django's documentation to use it in an authentication chain. The example shows how to set it as the only authoritative authentication backend.
