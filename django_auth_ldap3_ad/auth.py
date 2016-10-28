@@ -88,7 +88,7 @@ class LDAP3ADBackend(object):
 
         # LDAP_IGNORED_LOCAL_GROUPS is a list of local Django groups that must be kept.
         if (hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS') and
-            not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
+                not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
             raise ImproperlyConfigured()
 
         # inspired from
