@@ -86,6 +86,11 @@ class LDAP3ADBackend(object):
                                               hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
 
+        # LDAP_IGNORED_LOCAL_GROUPS is a list of local Django groups that must be kept.
+        if (hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS') and
+            not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
+            raise ImproperlyConfigured()
+
         # inspired from
         # https://github.com/Lucterios2/django_auth_ldap3_ad/commit/ce24d4687f85ed12a0c4c796022ae7dcb3ff38e3
         # by jobec
@@ -180,7 +185,11 @@ class LDAP3ADBackend(object):
 
                     usr.save()
                     logger.info("AUDIT LOGIN FOR: %s AT %s CLEANING OLD GROUP MEMBERSHIP" % (username, datetime.now()))
-                    for grp in Group.objects.all():
+                    if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
+                        grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
+                    else:
+                        grps = Group.objects.all()
+                    for grp in grps:
                         grp.user_set.remove(usr)
                         grp.save()
 

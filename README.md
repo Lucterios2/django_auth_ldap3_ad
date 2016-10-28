@@ -86,6 +86,13 @@ If this parameter is set, the module takes care that each connected user is memb
 LDAP_MIN_GROUPS = ["MyDjangoGroup", ]
 ```
 
+### kept users in local groups
+
+If this parameter is set, the module will kept users in these locally-defined groups. Otherwise, every group membership is refreshed (removed and readded) when a user authenticates. 
+
+```python
+LDAP_IGNORED_LOCAL_GROUPS = ["MyLocalDjangoGroup", ]
+```
 
 ### groups mapping to django's groups
 
