@@ -8,6 +8,18 @@ reconciling the user with the local django database.
 If user does not exists locally, it creates it, else it updates it.
 Moreover, it tries to determine group membership following the rules given in settings.py
 
+## How to install
+You can use pip:
+```bash
+pip install git+https://github.com/Lucterios2/django_auth_ldap3_ad.git
+```
+Then you must add it in INSTALLED_APPS:
+```python
+INSTALLED_APPS = [    
+    'django_auth_ldap3_ad',
+    'django.contrib.admin',
+```
+
 ## LDAP CONFIG
 ### servers
 
