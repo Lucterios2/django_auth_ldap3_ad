@@ -8,6 +8,11 @@ reconciling the user with the local django database.
 If user does not exists locally, it creates it, else it updates it.
 Moreover, it tries to determine group membership following the rules given in settings.py
 
+## INSTALLATION
+```bash
+pip install django-auth-ldap3-ad
+```
+
 ## LDAP CONFIG
 ### servers
 
