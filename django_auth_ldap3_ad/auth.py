@@ -306,5 +306,9 @@ class LDAP3ADBackend(object):
                 if settings.LDAP_ATTRIBUTES_MAP[attr] in attributes \
                         and len(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]) >= 1 \
                         and hasattr(user, attr):
-                    setattr(user, attr, attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0])
+                    if isinstance(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]], str):
+                        attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]
+                    else:
+                        attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0]
+                    setattr(user, attr, attribute_value)
         user.save()
