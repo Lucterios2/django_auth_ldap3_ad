@@ -156,7 +156,8 @@ class LDAP3ADBackend(object):
                 user_model.bu = lambda: None
                 try:
                     # try to retrieve user from database and update it
-                    usr = user_model.objects.get(username__iexact=username)
+                    username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username') 
+                    usr = user_model.objects.get(**{"{0}__iexact".format(username_field): username})
                 except user_model.DoesNotExist:
                     # user does not exist in database already, create it
                     usr = user_model()
@@ -306,5 +307,9 @@ class LDAP3ADBackend(object):
                 if settings.LDAP_ATTRIBUTES_MAP[attr] in attributes \
                         and len(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]) >= 1 \
                         and hasattr(user, attr):
-                    setattr(user, attr, attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0])
+                    if isinstance(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]], str):
+                        attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]
+                    else:
+                        attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0]
+                    setattr(user, attr, attribute_value)
         user.save()

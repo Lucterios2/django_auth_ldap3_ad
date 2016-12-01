@@ -83,6 +83,16 @@ LDAP_ATTRIBUTES_MAP = {
 }
 ```
 
+### changing username field in user model
+
+Which user model field should be used as user login. Default: `username`.
+
+```python
+LDAP_USER_MODEL_USERNAME_FIELD = 'email'
+```
+
+Make sure field is mapped to LDAP attribute in `LDAP_ATTRIBUTES_MAP`.
+
 ### minimal group membership
 
 If this parameter is set, the module takes care that each connected user is member of this groups whereas you want to use LDAP groups or not.
