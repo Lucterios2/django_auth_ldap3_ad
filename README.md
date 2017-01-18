@@ -40,6 +40,18 @@ LDAP_SERVERS = [
 ]
 ```
 
+### LDAP engine
+
+As some capabilities differs between LDAP engines, you can define your engine to use specific features.
+
+Actual used values are:
+- AD (default)
+- OpenLDAP
+
+```python
+LDAP_ENGINE = 'OpenLDAP'
+```
+
 ### user and password to be able to bind and search for users and groups
 
 Mandatory parameter.
@@ -115,7 +127,13 @@ First parameter of this group enables to use LDAP group binding or disable it to
 If LDAP_GROUPS_SEARCH_BASE is not defined LDAP_SEARCH_BASE will be used as base for group lookup.
 As django defines 2 special rights outside of the use of groups, the module can bind specific group membership to those 2 special attributes in addition to classical groups binding.
 If superuser and staff parameters are not present, not a list or an empty list, those parameters are skipped. This way, you can use LDAP groups for "classical groups" and define manually in the database who will be superuser or staff user.
+With the addition of LDAP engine, LDAP_GROUPS_SEARCH_FILTER can be automatically enriched in 2 different ways:
+
+using LDAP_ENGINE = 'AD' or without specifying it:
 Thanks to jobec, LDAP_GROUPS_SEARCH_FILTER is now automatically enriched by the list of superuser, staff and map groups to limit search to the strictly needed ones and avoid troubles with LDAP having more than 1000 groups.
+
+using LDAP_ENGINE = 'OpenLDAP':
+The filter is automatically enriched using the user's DN and getting only groups the user is member of.
 
 ```python
 LDAP_USE_LDAP_GROUPS = True

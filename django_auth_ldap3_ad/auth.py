@@ -91,19 +91,6 @@ class LDAP3ADBackend(object):
                 not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
             raise ImproperlyConfigured()
 
-        # inspired from
-        # https://github.com/Lucterios2/django_auth_ldap3_ad/commit/ce24d4687f85ed12a0c4c796022ae7dcb3ff38e3
-        # by jobec
-        all_ldap_groups = []
-        for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
-                settings.LDAP_GROUPS_MAP.values()):
-            all_ldap_groups.append("(distinguishedName={0})".format(group))
-
-        if len(all_ldap_groups) > 0:
-            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
-                                                                       "".join(all_ldap_groups))
-        # end
-
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
             LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
@@ -139,6 +126,11 @@ class LDAP3ADBackend(object):
         if username is None or username == '':
             return None
 
+        # search capacities differs on LDAP engines.
+        ldap_engine = 'AD'  # to keep compatibility with previous version
+        if hasattr(settings, 'LDAP_ENGINE') and settings.LDAP_ENGINE is not None:
+            ldap_engine = settings.LDAP_ENGINE
+
         user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
         if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
@@ -169,6 +161,27 @@ class LDAP3ADBackend(object):
 
                 # if we want to use LDAP group membership:
                 if LDAP3ADBackend.use_groups:
+
+                    # if using AD filter groups in result by using groups in the config
+                    if ldap_engine == 'AD':
+                        # inspired from
+                        # https://github.com/Lucterios2/django_auth_ldap3_ad/commit/ce24d4687f85ed12a0c4c796022ae7dcb3ff38e3
+                        # by jobec
+                        all_ldap_groups = []
+                        for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
+                                settings.LDAP_GROUPS_MAP.values()):
+                            all_ldap_groups.append("(distinguishedName={0})".format(group))
+
+                        if len(all_ldap_groups) > 0:
+                            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
+                                settings.LDAP_GROUPS_SEARCH_FILTER,
+                                "".join(all_ldap_groups))
+                            # end
+                    # if using OpenLDAP, filter groups in search by membership of the user
+                    elif ldap_engine == 'OpenLDAP':
+                        settings.LDAP_GROUPS_SEARCH_FILTER = "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER,
+                                                                                   user_dn)
+
                     logger.info("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
                     # check for groups membership
                     # first cleanup
