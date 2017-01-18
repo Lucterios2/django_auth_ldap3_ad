@@ -179,8 +179,19 @@ class LDAP3ADBackend(object):
                             # end
                     # if using OpenLDAP, filter groups in search by membership of the user
                     elif ldap_engine == 'OpenLDAP':
+                        # add filter on member
                         settings.LDAP_GROUPS_SEARCH_FILTER = "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER,
                                                                                    user_dn)
+                        # add filter on groups to match
+                        all_ldap_groups = []
+                        for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
+                                settings.LDAP_GROUPS_MAP.values()):
+                            all_ldap_groups.append(group.split(',')[0])
+
+                        if len(all_ldap_groups) > 0:
+                            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
+                                settings.LDAP_GROUPS_SEARCH_FILTER,
+                                "".join(all_ldap_groups))
 
                     logger.info("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
                     # check for groups membership

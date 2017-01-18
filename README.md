@@ -133,7 +133,7 @@ using LDAP_ENGINE = 'AD' or without specifying it:
 Thanks to jobec, LDAP_GROUPS_SEARCH_FILTER is now automatically enriched by the list of superuser, staff and map groups to limit search to the strictly needed ones and avoid troubles with LDAP having more than 1000 groups.
 
 using LDAP_ENGINE = 'OpenLDAP':
-The filter is automatically enriched using the user's DN and getting only groups the user is member of.
+The filter is automatically enriched using the user's DN and getting only groups the user is member of and part of the superuser, staff and map groups list.
 
 ```python
 LDAP_USE_LDAP_GROUPS = True
