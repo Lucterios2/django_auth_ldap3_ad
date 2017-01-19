@@ -186,7 +186,7 @@ class LDAP3ADBackend(object):
                         all_ldap_groups = []
                         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
                                 settings.LDAP_GROUPS_MAP.values()):
-                            all_ldap_groups.append(group.split(',')[0])
+                            all_ldap_groups.append("(%s)" % group.split(',')[0])
 
                         if len(all_ldap_groups) > 0:
                             settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
