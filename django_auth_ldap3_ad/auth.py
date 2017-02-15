@@ -105,7 +105,7 @@ class LDAP3ADBackend(object):
         # search for the desired user
         user_dn = None
         user_attribs = None
-        con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_USER_SEARCH_FILTER % username,
+        con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_USER_SEARCH_FILTER.replace('%s', '{0}').format(username),
                    attributes=list(settings.LDAP_ATTRIBUTES_MAP.values()))
         if con.result['result'] == 0 and len(con.response) > 0 and 'dn' in con.response[0].keys():
             user_dn = con.response[0]['dn']
