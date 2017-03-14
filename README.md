@@ -80,6 +80,14 @@ help for filters writing:
 LDAP_SEARCH_BASE = "dc=domain,dc=local"
 LDAP_USER_SEARCH_FILTER = "(&(sAMAccountName=%s)(objectClass=user))"
 ```
+All `%s` in `LDAP_USER_SEARCH_FILTER` are replaced with `{0}` and the username is injected with `string.format`
+With this you can use the username more than once.
+e.g.
+```python
+LDAP_USER_SEARCH_FILTER = "(&(|(userPrincipalName={0})(sAMAccountName={0}))(objectClass=user))"
+```
+will match the username in either `sAMAccountName` or `userPrincipalName` so that users can then login with username or email address.
+
 
 ### attributes mapping
 
