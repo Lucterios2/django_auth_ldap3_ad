@@ -194,3 +194,40 @@ Mandatory parameter to tell django to use this module as it's authentication bac
 ```python
 AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
 ```
+
+### NEW in 1.6 series:
+
+This auth module now comes with helpers to create a user in the Active Directory, update the password of the user, update the attributes of a user.
+Caution: those helpers, especially the create user one, are specific to MS Active Directory even if they use LDAP protocol.
+
+As those helpers will make changes in the directory, you MUST configure almost one server to use SSL LDAP binding. Other servers in you configuration will be ignored automatically by those helpers.
+You must also provide a user with needed rights to add or modify users in the needed OU:
+
+```python
+LDAP_BIND_ADMIN = "CN=my admin,OU=x,DC=mydom,DC=local"
+LDAP_BIND_ADMIN_PASS = "MySuperFunPassword"
+```
+
+To be able to create the user principal name, you must also provide the local domain of the AD:
+
+```python
+LDAP_AD_DOMAIN = "mydom.local"
+```
+
+The last setting is the path to the AD root certificate to enforce encryption between client and server:
+
+```python
+LDAP_CERT_FILE = "/path/to/mycert.pem"
+```
+
+Once your configuration updated, you will be able to use the helpers:
+
+```python
+from django_auth_ldap3_ad.ad_users import Aduser
+
+adu = Aduser()
+adu.create_ad_user(user_dn, firstname, lastname, sAMAccountName, mail=email, description=description)
+adu.update_password_ad_user(user_dn, password)
+adu.update_ad_user(user_dn, {'ldapAttrib1': 'value1', 'ldapAttrib2': 'value2'})
+adu.activate_ad_user(user_dn)
+```
