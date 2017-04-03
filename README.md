@@ -59,8 +59,10 @@ To bind to a LDAP server, we need a fully qualified distinguished name. The user
 
 ```python
 LDAP_BIND_USER = "cn=xxx,dc=domain,dc=local"
-LDAP_BIND_PWD = "pass"
+LDAP_BIND_PASSWORD = "pass"
 ```
+
+You can also use LDAP_BIND_PWD for the bind password. `LDAP_BIND_PASSWORD` will be replaced with '****' in debug views like `django_debug_toolbar` while `LDAP_BIND_PWD` will not.
 
 ### search parameters
 
