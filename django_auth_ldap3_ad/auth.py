@@ -68,11 +68,15 @@ class LDAP3ADBackend(object):
         if username is None or username == '':
             return None, None
 
+        # add LDAP_BIND_PASSWORD as password field
+        password_field = 'LDAP_BIND_PWD' if hasattr(settings, 'LDAP_BIND_PWD') else 'LDAP_BIND_PASSWORD'
+
         # check configuration
         if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER') and
-                hasattr(settings, 'LDAP_BIND_PWD') and hasattr(settings, 'LDAP_SEARCH_BASE') and
+                hasattr(settings, password_field) and hasattr(settings, 'LDAP_SEARCH_BASE') and
                 hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
             raise ImproperlyConfigured()
+
 
         # as first release of the module does not have this parameter, default is to set it true to keep the same
         # comportment after updates.
@@ -100,7 +104,7 @@ class LDAP3ADBackend(object):
 
         # then, try to connect with user/pass from settings
         con = Connection(LDAP3ADBackend.pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
-                         password=settings.LDAP_BIND_PWD, authentication=SIMPLE, check_names=True)
+                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD, authentication=SIMPLE, check_names=True)
 
         # search for the desired user
         user_dn = None
