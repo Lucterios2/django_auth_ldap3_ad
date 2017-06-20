@@ -25,7 +25,7 @@ along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
+from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
 import logging
@@ -95,6 +95,11 @@ class LDAP3ADBackend(object):
                 not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
             raise ImproperlyConfigured()
 
+        if (hasattr(settings, 'LDAP_AUTHENTICATION')):
+            authentication = getattr(settings, 'LDAP_AUTHENTICATION')
+        else:
+            authentication = SIMPLE
+
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
             LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
@@ -104,7 +109,8 @@ class LDAP3ADBackend(object):
 
         # then, try to connect with user/pass from settings
         con = Connection(LDAP3ADBackend.pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
-                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD, authentication=SIMPLE, check_names=True)
+                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD,
+                         authentication=authentication, check_names=True)
 
         # search for the desired user
         user_dn = None
@@ -343,3 +349,4 @@ class LDAP3ADBackend(object):
                         attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0]
                     setattr(user, attr, attribute_value)
         user.save()
+

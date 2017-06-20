@@ -64,6 +64,17 @@ LDAP_BIND_PASSWORD = "pass"
 
 You can also use LDAP_BIND_PWD for the bind password. `LDAP_BIND_PASSWORD` will be replaced with '****' in debug views like `django_debug_toolbar` while `LDAP_BIND_PWD` will not.
 
+
+### LDAP Authentication parameter
+
+Optional parameter.
+If you want to change method of authorization with your LDAP from SIMPLE to any else (FIRST, SYNC, SIMPLE, NTLM), you can do it by setting parameter in settings.
+
+```python
+from ldap3 import NTLM
+LDAP_AUTHENTICATION = NTLM
+```
+
 ### search parameters
 
 Mandatory parameters.
