@@ -19,5 +19,5 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
     ],
-    install_requires=["Django>=1.8", "ldap3>=0.9.8"],
+    install_requires=["Django>=1.8", "ldap3>=0.9.8", "six"],
 )
