@@ -26,6 +26,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
+from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
 import logging
@@ -337,7 +338,7 @@ class LDAP3ADBackend(object):
                 if settings.LDAP_ATTRIBUTES_MAP[attr] in attributes \
                         and len(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]) >= 1 \
                         and hasattr(user, attr):
-                    if isinstance(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]], str):
+                    if isinstance(attributes[settings.LDAP_ATTRIBUTES_MAP[attr]], string_types):
                         attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]]
                     else:
                         attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0]
