@@ -20,19 +20,16 @@ You should have received a copy of the GNU General Public License
 along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 """
 import ssl
-
 from ldap3 import Tls
-
-"""
-scripts wildly inspired from:
-https://mespotesgeek.fr/fr/python-et-utilisateurs-active-directory/
-"""
-
 from django.conf import settings
 from ldap3 import Server, ServerPool, Connection, FIRST, SIMPLE, MODIFY_REPLACE
 from django.core.exceptions import ImproperlyConfigured
 import logging
 
+"""
+scripts wildly inspired from:
+https://mespotesgeek.fr/fr/python-et-utilisateurs-active-directory/
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -137,8 +134,16 @@ class Aduser:
     def activate_ad_user(self, user_dn, never_expires=False):
         if never_expires:
             return self.update_ad_user(user_dn, {"userAccountControl":
-                                                     Aduser.ADS_UF_NORMAL_ACCOUNT + Aduser.ADS_UF_DONT_EXPIRE_PASSWD})
+                                                 Aduser.ADS_UF_NORMAL_ACCOUNT + Aduser.ADS_UF_DONT_EXPIRE_PASSWD})
         return self.update_ad_user(user_dn, {"userAccountControl": Aduser.ADS_UF_NORMAL_ACCOUNT})
+
+    def deactivate_ad_user(self, user_dn, never_expires=False):
+        if never_expires:
+            return self.update_ad_user(user_dn, {"userAccountControl":
+                                                 Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT +
+                                                 Aduser.ADS_UF_DONT_EXPIRE_PASSWD})
+        return self.update_ad_user(user_dn, {"userAccountControl":
+                                             Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT})
 
     def update_password_ad_user(self, user_dn, newpassword):
         unicode_pass = '"%s"' % newpassword
