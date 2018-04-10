@@ -169,6 +169,7 @@ class LDAP3ADBackend(object):
                 # update existing or new user with LDAP data
                 LDAP3ADBackend.update_user(usr, user_attribs)
                 usr.set_password(password)
+                usr.last_login = datetime.now()
                 usr.save()
 
                 # if we want to use LDAP group membership:
