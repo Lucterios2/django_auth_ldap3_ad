@@ -46,6 +46,7 @@ def user_logged_in_handler(sender, request, user, **kwargs):
     if 'bu' in user.__dict__ and user.bu is not None:
         request.session['LDAP_USER_BU'] = user.bu
 
+
 user_logged_in.connect(user_logged_in_handler)
 
 
@@ -78,7 +79,6 @@ class LDAP3ADBackend(object):
                 hasattr(settings, 'LDAP_USER_SEARCH_FILTER') and hasattr(settings, 'LDAP_ATTRIBUTES_MAP')):
             raise ImproperlyConfigured()
 
-
         # as first release of the module does not have this parameter, default is to set it true to keep the same
         # comportment after updates.
         if hasattr(settings, 'LDAP_USE_LDAP_GROUPS') and isinstance(settings.LDAP_USE_LDAP_GROUPS, bool):
@@ -96,7 +96,7 @@ class LDAP3ADBackend(object):
                 not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
             raise ImproperlyConfigured()
 
-        if (hasattr(settings, 'LDAP_AUTHENTICATION')):
+        if hasattr(settings, 'LDAP_AUTHENTICATION'):
             authentication = getattr(settings, 'LDAP_AUTHENTICATION')
         else:
             authentication = SIMPLE
@@ -350,4 +350,3 @@ class LDAP3ADBackend(object):
                         attribute_value = attributes[settings.LDAP_ATTRIBUTES_MAP[attr]][0]
                     setattr(user, attr, attribute_value)
         user.save()
-
