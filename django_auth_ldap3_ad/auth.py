@@ -65,8 +65,7 @@ class LDAP3ADBackend(object):
     # do we use LDAP Groups?
     use_groups = False
 
-    @staticmethod
-    def init_and_get_ldap_user(username):
+    def init_and_get_ldap_user(self, username):
         if username is None or username == '':
             return None, None
 
@@ -132,8 +131,8 @@ class LDAP3ADBackend(object):
     Finally, if setup, adds the minimal group membership common to all users
     """
 
-    @staticmethod
-    def authenticate(username=None, password=None):
+    def authenticate(self, request, username=None, password=None):
+        logger.info("AUDIT BEGIN LOGIN PROCESS FOR: %s AT %s" % (username, datetime.now()))
         if username is None or username == '':
             return None
 
@@ -142,7 +141,7 @@ class LDAP3ADBackend(object):
         if hasattr(settings, 'LDAP_ENGINE') and settings.LDAP_ENGINE is not None:
             ldap_engine = settings.LDAP_ENGINE
 
-        user_dn, user_attribs = LDAP3ADBackend.init_and_get_ldap_user(username)
+        user_dn, user_attribs = self.init_and_get_ldap_user(username)
         if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
@@ -167,7 +166,7 @@ class LDAP3ADBackend(object):
                     usr = user_model()
 
                 # update existing or new user with LDAP data
-                LDAP3ADBackend.update_user(usr, user_attribs)
+                self.update_user(usr, user_attribs)
                 usr.set_password(password)
                 usr.last_login = datetime.now()
                 usr.save()
@@ -307,8 +306,7 @@ class LDAP3ADBackend(object):
                 return usr
         return None
 
-    @staticmethod
-    def get_user(user_id):
+    def get_user(self, user_id):
         user_model = get_user_model()
         try:
             return user_model.objects.get(pk=user_id)
@@ -321,8 +319,7 @@ class LDAP3ADBackend(object):
     That's why there is now a minimalistic has_perm method.
     """
 
-    @staticmethod
-    def has_perm(user, perm, obj=None):
+    def has_perm(self, user, perm, obj=None):
         mod, code = perm.split('.')
         for perm in user.user_permissions.all():
             if perm.codename == code and perm.content_type.app_label == mod:
@@ -338,8 +335,7 @@ class LDAP3ADBackend(object):
     Update user's attributes in DB from LDAP attributes
     """
 
-    @staticmethod
-    def update_user(user, attributes):
+    def update_user(self, user, attributes):
         if user is not None:
             for attr in settings.LDAP_ATTRIBUTES_MAP.keys():
                 if settings.LDAP_ATTRIBUTES_MAP[attr] in attributes \
