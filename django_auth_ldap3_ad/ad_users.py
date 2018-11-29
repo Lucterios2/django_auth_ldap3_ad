@@ -122,6 +122,10 @@ class Aduser:
         ACTION = MODIFY_REPLACE
         if mode == 'ADD':
             ACTION = MODIFY_ADD
+        elif mode == 'APPEND':
+            ACTION = 'MODIFY_INCREMENT'
+        elif mode == 'DELETE':
+            ACTION = 'MODIFY_DELETE'
 
         attribs = {}
         for attr in attributes.keys():
