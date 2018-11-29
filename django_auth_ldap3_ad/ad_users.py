@@ -22,7 +22,7 @@ along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 import ssl
 from ldap3 import Tls
 from django.conf import settings
-from ldap3 import Server, ServerPool, Connection, FIRST, SIMPLE, MODIFY_REPLACE
+from ldap3 import Server, ServerPool, Connection, FIRST, SIMPLE, MODIFY_REPLACE, MODIFY_ADD
 from django.core.exceptions import ImproperlyConfigured
 import logging
 
@@ -115,14 +115,18 @@ class Aduser:
         ))
         return self.con.result
 
-    def update_ad_user(self, user_dn, attributes):
+    def update_ad_user(self, user_dn, attributes, mode='REPLACE'):
         if self.con is None:
             self.connect()
+
+        ACTION = MODIFY_REPLACE
+        if mode == 'ADD':
+            ACTION = MODIFY_ADD
 
         attribs = {}
         for attr in attributes.keys():
             attribs[attr] = [
-                (MODIFY_REPLACE, [attributes[attr]])
+                (ACTION, [attributes[attr]])
             ]
 
         self.con.modify(
