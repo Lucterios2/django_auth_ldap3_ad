@@ -29,6 +29,7 @@ from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM
 from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
+from django.utils import timezone
 import logging
 from django.contrib.auth.signals import user_logged_in
 
@@ -168,7 +169,7 @@ class LDAP3ADBackend(object):
                 # update existing or new user with LDAP data
                 self.update_user(usr, user_attribs)
                 usr.set_password(password)
-                usr.last_login = datetime.now()
+                usr.last_login = timezone.now()
                 usr.save()
 
                 # if we want to use LDAP group membership:
