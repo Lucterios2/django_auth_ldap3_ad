@@ -31,6 +31,7 @@ from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from datetime import datetime
 import logging
 from django.contrib.auth.signals import user_logged_in
+from django.contrib.auth.backends import ModelBackend
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def user_logged_in_handler(sender, request, user, **kwargs):
 user_logged_in.connect(user_logged_in_handler)
 
 
-class LDAP3ADBackend(object):
+class LDAP3ADBackend(ModelBackend):
     """
     Authenticate against Active directory or other LDAP server
 
