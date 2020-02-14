@@ -31,14 +31,29 @@ LDAP_SERVERS = [
         'host': '<server 1 IP>',
         'port': 389,
         'use_ssl': False,
+        'get_info': 'NONE',
     },
     {
         'host': '<server 2 IP>',
         'port': 389,
         'use_ssl': False,
+        'get_info': 'NONE',
     },
 ]
 ```
+
+get_info: 
+specifies if the server schema and server specific info must be read (defaults to SCHEMA). 
+
+Possible values are:
+NONE: no information is gathered from the server
+DSA: server information is stored in server.info
+SCHEMA: schema information is stored in server.schema
+ALL: server and schema information are gathered and stored in server.info and server.schema
+OFFLINE_EDIR_8_8_8: pre-built schema and info for NetIQ eDirectory 8.8.8
+OFFLINE_AD_2012_R2: pre-built schema and info for Microsoft Active Directory from Windows Server 2012 R2
+OFFLINE_SLAPD_2_4: pre-built schema and info for Openldap 2.4
+OFFLINE_DS389_1_3_3: pre-built schema and info for DS389 1.3.3
 
 ### LDAP engine
 
@@ -208,6 +223,14 @@ Mandatory parameter to tell django to use this module as it's authentication bac
 AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
 ```
 
+### Obfuscate password
+
+If, for security reason, you don't want the real password to be stored in the database at authentication time, you can ask to obfuscate it. When set to true, the password stored at authentication time will be randomly generated.
+
+```python
+LDAP_OBFUSCATE_PASS = True
+```
+ 
 ### NEW in 1.6 series:
 
 This auth module now comes with helpers to create a user in the Active Directory, update the password of the user, update the attributes of a user.

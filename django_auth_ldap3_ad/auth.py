@@ -21,6 +21,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 """
+import os
+import string
+import random
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -31,6 +34,7 @@ from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from django.utils import timezone
 import logging
 from django.contrib.auth.signals import user_logged_in
+from django.contrib.auth.backends import ModelBackend
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,31 @@ def user_logged_in_handler(sender, request, user, **kwargs):
 user_logged_in.connect(user_logged_in_handler)
 
 
-class LDAP3ADBackend(object):
+def create_password():
+    # generate password
+    chars = string.ascii_letters + string.digits + '!@#$%&*'
+    random.seed = (os.urandom(1024))
+    families = 0
+    passwd = ''
+    while families < 3:
+        passwd = ''.join(random.choice(chars) for i in range(10))
+        lowercase = [c for c in passwd if c.islower()]
+        uppercase = [c for c in passwd if c.isupper()]
+        digits = [c for c in passwd if c.isdigit()]
+        ponctuation = [c for c in passwd if not c.isalnum()]
+
+        families = 1 if len(lowercase) > 0 else 0
+        families += 1 if len(uppercase) > 0 else 0
+        families += 1 if len(digits) > 0 else 0
+        families += 1 if len(ponctuation) > 0 else 0
+
+        logger.debug("PROPOSITION PASSWORD: %s" % passwd)
+        logger.debug("FAMILIES: %s" % families)
+
+    return passwd
+
+
+class LDAP3ADBackend(ModelBackend):
     """
     Authenticate against Active directory or other LDAP server
 
@@ -104,7 +132,13 @@ class LDAP3ADBackend(object):
         if LDAP3ADBackend.pool is None:
             LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
             for srv in settings.LDAP_SERVERS:
-                server = Server(srv['host'], srv['port'], srv['use_ssl'])
+                # from rechie, pullrequest #30
+                # check if LDAP_SERVERS settings has set ldap3 `get_info` parameter
+                if 'get_info' in srv:
+                    server = Server(srv['host'], srv['port'], srv['use_ssl'], get_info=srv['get_info'])
+                else:
+                    server = Server(srv['host'], srv['port'], srv['use_ssl'])
+
                 LDAP3ADBackend.pool.add(server)
 
         # then, try to connect with user/pass from settings
@@ -120,6 +154,12 @@ class LDAP3ADBackend(object):
         if con.result['result'] == 0 and len(con.response) > 0 and 'dn' in con.response[0].keys():
             user_dn = con.response[0]['dn']
             user_attribs = con.response[0]['attributes']
+
+            # from rechie, pullrequest #30
+            # convert `user_attribs` values to string if the returned value is a list
+            for attrib in user_attribs:
+                if isinstance(user_attribs[attrib], list):
+                    user_attribs[attrib] = user_attribs[attrib][0]
         con.unbind()
         return user_dn, user_attribs
 
@@ -167,7 +207,10 @@ class LDAP3ADBackend(object):
 
                 # update existing or new user with LDAP data
                 self.update_user(usr, user_attribs)
-                usr.set_password(password)
+                if hasattr(settings, 'LDAP_OBFUSCATE_PASS') and settings.LDAP_OBFUSCATE_PASS:
+                    usr.set_password(create_password())
+                else:
+                    usr.set_password(password)
                 usr.last_login = timezone.now()
                 usr.save()
 
