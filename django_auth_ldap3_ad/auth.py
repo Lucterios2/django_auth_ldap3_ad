@@ -21,6 +21,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 """
+import os
+import string
+import random
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -49,6 +52,30 @@ def user_logged_in_handler(sender, request, user, **kwargs):
 
 
 user_logged_in.connect(user_logged_in_handler)
+
+
+def create_password():
+    # generate password
+    chars = string.ascii_letters + string.digits + '!@#$%&*'
+    random.seed = (os.urandom(1024))
+    families = 0
+    passwd = ''
+    while families < 3:
+        passwd = ''.join(random.choice(chars) for i in range(10))
+        lowercase = [c for c in passwd if c.islower()]
+        uppercase = [c for c in passwd if c.isupper()]
+        digits = [c for c in passwd if c.isdigit()]
+        ponctuation = [c for c in passwd if not c.isalnum()]
+
+        families = 1 if len(lowercase) > 0 else 0
+        families += 1 if len(uppercase) > 0 else 0
+        families += 1 if len(digits) > 0 else 0
+        families += 1 if len(ponctuation) > 0 else 0
+
+        logger.debug("PROPOSITION PASSWORD: %s" % passwd)
+        logger.debug("FAMILIES: %s" % families)
+
+    return passwd
 
 
 class LDAP3ADBackend(ModelBackend):
@@ -168,7 +195,10 @@ class LDAP3ADBackend(ModelBackend):
 
                 # update existing or new user with LDAP data
                 self.update_user(usr, user_attribs)
-                usr.set_password(password)
+                if hasattr(settings, 'LDAP_OBFUSCATE_PASS') and settings.LDAP_OBFUSCATE_PASS:
+                    usr.set_password(create_password())
+                else:
+                    usr.set_password(password)
                 usr.last_login = datetime.now()
                 usr.save()
 

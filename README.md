@@ -208,6 +208,14 @@ Mandatory parameter to tell django to use this module as it's authentication bac
 AUTHENTICATION_BACKENDS = ("django_auth_ldap3_ad.auth.LDAP3ADBackend",)
 ```
 
+### Obfuscate password
+
+If, for security reason, you don't want the real password to be stored in the database at authentication time, you can ask to obfuscate it. When set to true, the password stored at authentication time will be randomly generated.
+
+```python
+LDAP_OBFUSCATE_PASS = True
+```
+ 
 ### NEW in 1.6 series:
 
 This auth module now comes with helpers to create a user in the Active Directory, update the password of the user, update the attributes of a user.
