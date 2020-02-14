@@ -132,7 +132,13 @@ class LDAP3ADBackend(ModelBackend):
         if LDAP3ADBackend.pool is None:
             LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
             for srv in settings.LDAP_SERVERS:
-                server = Server(srv['host'], srv['port'], srv['use_ssl'])
+                # from rechie, pullrequest #30
+                # check if LDAP_SERVERS settings has set ldap3 `get_info` parameter
+                if 'get_info' in srv:
+                    server = Server(srv['host'], srv['port'], srv['use_ssl'], get_info=srv['get_info'])
+                else:
+                    server = Server(srv['host'], srv['port'], srv['use_ssl'])
+
                 LDAP3ADBackend.pool.add(server)
 
         # then, try to connect with user/pass from settings
@@ -148,6 +154,12 @@ class LDAP3ADBackend(ModelBackend):
         if con.result['result'] == 0 and len(con.response) > 0 and 'dn' in con.response[0].keys():
             user_dn = con.response[0]['dn']
             user_attribs = con.response[0]['attributes']
+
+            # from rechie, pullrequest #30
+            # convert `user_attribs` values to string if the returned value is a list
+            for attrib in user_attribs:
+                if isinstance(user_attribs[attrib], list):
+                    user_attribs[attrib] = user_attribs[attrib][0]
         con.unbind()
         return user_dn, user_attribs
 
