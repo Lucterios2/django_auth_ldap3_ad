@@ -31,7 +31,7 @@ from django.contrib.auth.models import Group
 from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM
 from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
-from datetime import datetime
+from django.utils import timezone
 import logging
 from django.contrib.auth.signals import user_logged_in
 from django.contrib.auth.backends import ModelBackend
@@ -172,7 +172,7 @@ class LDAP3ADBackend(ModelBackend):
     """
 
     def authenticate(self, request, username=None, password=None):
-        logger.info("AUDIT BEGIN LOGIN PROCESS FOR: %s AT %s" % (username, datetime.now()))
+        logger.info("AUDIT BEGIN LOGIN PROCESS FOR: %s" % (username,))
         if username is None or username == '':
             return None
 
@@ -187,7 +187,7 @@ class LDAP3ADBackend(ModelBackend):
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
             con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
             if con.bind():
-                logger.info("AUDIT SUCCESS LOGIN FOR: %s AT %s" % (username, datetime.now()))
+                logger.info("AUDIT SUCCESS LOGIN FOR: %s" % (username,))
                 user_model = get_user_model()
 
                 """
@@ -211,7 +211,7 @@ class LDAP3ADBackend(ModelBackend):
                     usr.set_password(create_password())
                 else:
                     usr.set_password(password)
-                usr.last_login = datetime.now()
+                usr.last_login = timezone.now()
                 usr.save()
 
                 # if we want to use LDAP group membership:
@@ -249,7 +249,7 @@ class LDAP3ADBackend(ModelBackend):
                                 settings.LDAP_GROUPS_SEARCH_FILTER,
                                 "".join(all_ldap_groups))
 
-                    logger.info("AUDIT LOGIN FOR: %s AT %s USING LDAP GROUPS" % (username, datetime.now()))
+                    logger.info("AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
                     # check for groups membership
                     # first cleanup
                     alter_superuser_membership = False
@@ -265,7 +265,7 @@ class LDAP3ADBackend(ModelBackend):
                         alter_staff_membership = True
 
                     usr.save()
-                    logger.info("AUDIT LOGIN FOR: %s AT %s CLEANING OLD GROUP MEMBERSHIP" % (username, datetime.now()))
+                    logger.info("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (username,))
                     if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
                         grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
                     else:
@@ -284,34 +284,34 @@ class LDAP3ADBackend(ModelBackend):
                             if 'attributes' in resp and settings.LDAP_GROUP_MEMBER_ATTRIBUTE in resp['attributes'] \
                                     and user_dn in resp['attributes'][settings.LDAP_GROUP_MEMBER_ATTRIBUTE]:
 
-                                logger.info("AUDIT LOGIN FOR: %s AT %s DETECTED IN GROUP %s" %
-                                            (username, datetime.now(), resp['dn']))
+                                logger.info("AUDIT LOGIN FOR: %s DETECTED IN GROUP %s" %
+                                            (username, resp['dn']))
                                 # special super user group
                                 if alter_superuser_membership:
                                     if resp['dn'] in settings.LDAP_SUPERUSER_GROUPS:
                                         usr.is_superuser = True
-                                        logger.info("AUDIT LOGIN FOR: %s AT %s GRANTING ADMIN RIGHTS" %
-                                                    (username, datetime.now()))
+                                        logger.info("AUDIT LOGIN FOR: %s GRANTING ADMIN RIGHTS" %
+                                                    (username,))
                                     else:
-                                        logger.info("AUDIT LOGIN FOR: %s AT %s DENY ADMIN RIGHTS" %
-                                                    (username, datetime.now()))
+                                        logger.info("AUDIT LOGIN FOR: %s DENY ADMIN RIGHTS" %
+                                                    (username,))
                                 # special staff group
                                 if alter_staff_membership:
                                     if resp['dn'] in settings.LDAP_STAFF_GROUPS:
                                         usr.is_staff = True
-                                        logger.info("AUDIT LOGIN FOR: %s AT %s GRANTING STAFF RIGHTS" %
-                                                    (username, datetime.now()))
+                                        logger.info("AUDIT LOGIN FOR: %s GRANTING STAFF RIGHTS" %
+                                                    (username,))
                                     else:
-                                        logger.info("AUDIT LOGIN FOR: %s AT %s DENY STAFF RIGHTS" %
-                                                    (username, datetime.now()))
+                                        logger.info("AUDIT LOGIN FOR: %s DENY STAFF RIGHTS" %
+                                                    (username,))
                                 # other groups membership
                                 for grp in settings.LDAP_GROUPS_MAP.keys():
                                     if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                                         try:
                                             logger.info(grp)
                                             usr.groups.add(Group.objects.get(name=grp))
-                                            logger.info("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MEMBERSHIP" %
-                                                        (username, datetime.now(), grp))
+                                            logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MEMBERSHIP" %
+                                                        (username, grp))
                                         except ObjectDoesNotExist:
                                             pass
                     usr.save()
@@ -319,16 +319,16 @@ class LDAP3ADBackend(ModelBackend):
                 con.unbind()
 
                 # if set, apply min group membership
-                logger.info("AUDIT LOGIN FOR: %s AT %s BEFORE MIN GROUP MEMBERSHIP" %
-                            (username, datetime.now()))
+                logger.info("AUDIT LOGIN FOR: %s BEFORE MIN GROUP MEMBERSHIP" %
+                            (username,))
                 if hasattr(settings, 'LDAP_MIN_GROUPS'):
                     for grp in settings.LDAP_MIN_GROUPS:
-                        logger.info("AUDIT LOGIN FOR: %s AT %s MIN GROUP MEMBERSHIP: %s" %
-                                    (username, datetime.now(), grp))
+                        logger.info("AUDIT LOGIN FOR: %s MIN GROUP MEMBERSHIP: %s" %
+                                    (username, grp))
                         try:
                             usr.groups.add(Group.objects.get(name=grp))
-                            logger.info("AUDIT LOGIN FOR: %s AT %s ADDING GROUP %s MIN MEMBERSHIP" %
-                                        (username, datetime.now(), grp))
+                            logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MIN MEMBERSHIP" %
+                                        (username, grp))
                         except ObjectDoesNotExist:
                             pass
 
