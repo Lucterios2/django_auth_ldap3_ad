@@ -28,7 +28,7 @@ import random
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM, AUTO_BIND_TLS_BEFORE_BIND
+from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM, AUTO_BIND_TLS_BEFORE_BIND, AUTO_BIND_NO_TLS
 from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from django.utils import timezone
@@ -93,6 +93,9 @@ class LDAP3ADBackend(ModelBackend):
     # do we use LDAP Groups?
     use_groups = False
 
+    # is tls set?
+    tls_bool = False
+
     def init_and_get_ldap_user(self, username):
         tls_bool = False
         if username is None or username == '':
@@ -145,14 +148,15 @@ class LDAP3ADBackend(ModelBackend):
                 # TLS Settings:
                 if 'tls' in srv:
                     server.tls = srv['tls']
-                    tls_bool = True
+                    self.tls_bool = True
                 LDAP3ADBackend.pool.add(server)
 
         # then, try to connect with user/pass from settings
-        bind = True
-        if tls_bool is True:
+        if self.tls_bool is True:
             bind = AUTO_BIND_TLS_BEFORE_BIND
-            
+        else:
+            bind = AUTO_BIND_NO_TLS
+
         con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=getattr(
                              settings, password_field) or settings.LDAP_BIND_PASSWORD,
@@ -197,8 +201,15 @@ class LDAP3ADBackend(ModelBackend):
         if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
+
+            #Check for tls option here and tunnel connection.
+            if self.tls_bool is True:
+                bind = AUTO_BIND_TLS_BEFORE_BIND
+            else:
+                bind = AUTO_BIND_NO_TLS
+
             con = Connection(LDAP3ADBackend.pool,
-                             user=user_dn, password=password)
+                             user=user_dn, password=password, auto_bind=bind)
             if con.bind():
                 logger.info("AUDIT SUCCESS LOGIN FOR: %s" % (username,))
                 user_model = get_user_model()
