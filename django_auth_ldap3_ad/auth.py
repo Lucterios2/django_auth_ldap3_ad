@@ -28,7 +28,7 @@ import random
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM
+from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM, AUTO_BIND_TLS_BEFORE_BIND
 from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from django.utils import timezone
@@ -151,8 +151,8 @@ class LDAP3ADBackend(ModelBackend):
         # then, try to connect with user/pass from settings
         bind = True
         if tls_bool is True:
-            bind = 'AUTO_BIND_TLS_BEFORE_BIND'
-
+            bind = AUTO_BIND_TLS_BEFORE_BIND
+            
         con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=getattr(
                              settings, password_field) or settings.LDAP_BIND_PASSWORD,
