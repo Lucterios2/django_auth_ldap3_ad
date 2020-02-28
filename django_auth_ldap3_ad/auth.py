@@ -94,11 +94,13 @@ class LDAP3ADBackend(ModelBackend):
     use_groups = False
 
     def init_and_get_ldap_user(self, username):
+        tls_bool = False
         if username is None or username == '':
             return None, None
 
         # add LDAP_BIND_PASSWORD as password field
-        password_field = 'LDAP_BIND_PWD' if hasattr(settings, 'LDAP_BIND_PWD') else 'LDAP_BIND_PASSWORD'
+        password_field = 'LDAP_BIND_PWD' if hasattr(
+            settings, 'LDAP_BIND_PWD') else 'LDAP_BIND_PASSWORD'
 
         # check configuration
         if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_USER') and
@@ -130,20 +132,30 @@ class LDAP3ADBackend(ModelBackend):
 
         # first: build server pool from settings
         if LDAP3ADBackend.pool is None:
-            LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
+            LDAP3ADBackend.pool = ServerPool(
+                None, pool_strategy=FIRST, active=True)
             for srv in settings.LDAP_SERVERS:
                 # from rechie, pullrequest #30
                 # check if LDAP_SERVERS settings has set ldap3 `get_info` parameter
                 if 'get_info' in srv:
-                    server = Server(srv['host'], srv['port'], srv['use_ssl'], get_info=srv['get_info'])
+                    server = Server(srv['host'], srv['port'],
+                                    srv['use_ssl'], get_info=srv['get_info'])
                 else:
                     server = Server(srv['host'], srv['port'], srv['use_ssl'])
-
+                # TLS Settings:
+                if 'tls' in srv:
+                    server.tls = srv['tls']
+                    tls_bool = True
                 LDAP3ADBackend.pool.add(server)
 
         # then, try to connect with user/pass from settings
-        con = Connection(LDAP3ADBackend.pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
-                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD,
+        bind = True
+        if tls_bool is True:
+            bind = 'AUTO_BIND_TLS_BEFORE_BIND'
+
+        con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
+                         password=getattr(
+                             settings, password_field) or settings.LDAP_BIND_PASSWORD,
                          authentication=authentication, check_names=True)
 
         # search for the desired user
@@ -185,7 +197,8 @@ class LDAP3ADBackend(ModelBackend):
         if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
-            con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
+            con = Connection(LDAP3ADBackend.pool,
+                             user=user_dn, password=password)
             if con.bind():
                 logger.info("AUDIT SUCCESS LOGIN FOR: %s" % (username,))
                 user_model = get_user_model()
@@ -198,9 +211,11 @@ class LDAP3ADBackend(ModelBackend):
                 user_model.bu = lambda: None
                 try:
                     # try to retrieve user from database and update it
-                    username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username') 
+                    username_field = getattr(
+                        settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username')
                     lookup_username = user_attribs[settings.LDAP_ATTRIBUTES_MAP[username_field]]
-                    usr = user_model.objects.get(**{"{0}__iexact".format(username_field): lookup_username})
+                    usr = user_model.objects.get(
+                        **{"{0}__iexact".format(username_field): lookup_username})
                 except user_model.DoesNotExist:
                     # user does not exist in database already, create it
                     usr = user_model()
@@ -225,7 +240,8 @@ class LDAP3ADBackend(ModelBackend):
                         all_ldap_groups = []
                         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
                                 settings.LDAP_GROUPS_MAP.values()):
-                            all_ldap_groups.append("(distinguishedName={0})".format(group))
+                            all_ldap_groups.append(
+                                "(distinguishedName={0})".format(group))
 
                         if len(all_ldap_groups) > 0:
                             settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
@@ -242,14 +258,16 @@ class LDAP3ADBackend(ModelBackend):
                         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(
                                 settings.LDAP_GROUPS_MAP.values()):
                             if "(%s)" % group.split(',')[0] not in all_ldap_groups:
-                                all_ldap_groups.append("(%s)" % group.split(',')[0])
+                                all_ldap_groups.append(
+                                    "(%s)" % group.split(',')[0])
 
                         if len(all_ldap_groups) > 0:
                             settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
                                 settings.LDAP_GROUPS_SEARCH_FILTER,
                                 "".join(all_ldap_groups))
 
-                    logger.info("AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
+                    logger.info(
+                        "AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
                     # check for groups membership
                     # first cleanup
                     alter_superuser_membership = False
@@ -265,9 +283,11 @@ class LDAP3ADBackend(ModelBackend):
                         alter_staff_membership = True
 
                     usr.save()
-                    logger.info("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (username,))
+                    logger.info(
+                        "AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (username,))
                     if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
-                        grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
+                        grps = Group.objects.exclude(
+                            name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
                     else:
                         grps = Group.objects.all()
                     for grp in grps:
@@ -309,7 +329,8 @@ class LDAP3ADBackend(ModelBackend):
                                     if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                                         try:
                                             logger.info(grp)
-                                            usr.groups.add(Group.objects.get(name=grp))
+                                            usr.groups.add(
+                                                Group.objects.get(name=grp))
                                             logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MEMBERSHIP" %
                                                         (username, grp))
                                         except ObjectDoesNotExist:
