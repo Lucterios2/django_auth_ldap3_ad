@@ -22,6 +22,28 @@ List of LDAP server to authenticate against. 3 information are needed for each:
 - the TCP port to connect on (default: 389 for non SSL and 636 for SSL)
 - a boolean tag to enable or not the use of SSL during authentication process against this server.
 
+Optional parameter.
+Define a TLS object to initiate a tunnel before binding the LDAP/AD connection:
+- Client certificate and key files will need to be generated and defined in the object
+- AD server will need to be trusted by the client, this is usually done by exporting the domain root CA cert, coping to the client (/usr/share/ca-certificates)and importing using the "update-ca-certificates" command.
+- The trusted CA list will need be defined in the object.
+- add a 'tls' attribute to the LDAP_SERVERS setting, this will automatically enable the tunnel.
+
+### tls
+
+Example TLS object:
+```python
+from ldap3 import tls
+    tls = Tls(validate=ssl.CERT_REQUIRED, version=ssl.PROTOCOL_TLSv1_2,
+                  ca_certs_path='/etc/ssl/certs', local_certificate_file='/etc/ssl/certs/server.crt',
+                  local_private_key_file='/etc/ssl/private/server.key',
+                  ca_certs_file='/etc/ssl/certs/ca-certificates.crt'
+                  )
+
+```
+
+More information available in the LDAP3 [documentation](https://ldap3.readthedocs.io/en/latest/ssltls.html#)
+
 You can define as many authentication servers as needed (as many as you have in you network) with, for each, it's own parameters.
 The pool is used in the order you defined. If the first one is available, authentication is against it, if the server is not available, the next is used. In all cases, if an answer is received for a server, it's considered authoritative even if it's negative 
 
@@ -32,12 +54,14 @@ LDAP_SERVERS = [
         'port': 389,
         'use_ssl': False,
         'get_info': 'NONE',
+        'tls' : tls,
     },
     {
         'host': '<server 2 IP>',
         'port': 389,
         'use_ssl': False,
         'get_info': 'NONE',
+        'tls' : tls,
     },
 ]
 ```
