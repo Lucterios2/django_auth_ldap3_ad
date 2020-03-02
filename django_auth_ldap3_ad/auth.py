@@ -36,6 +36,7 @@ import logging
 from django.contrib.auth.signals import user_logged_in
 from django.contrib.auth.backends import ModelBackend
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -151,17 +152,18 @@ class LDAP3ADBackend(ModelBackend):
                     self.tls_bool = True
                 LDAP3ADBackend.pool.add(server)
 
-        # then, try to connect with user/pass from settings
+        # Check to see if tls is enabled in the instance, alter the bind method it True
         if self.tls_bool is True:
             bind = AUTO_BIND_TLS_BEFORE_BIND
         else:
             bind = AUTO_BIND_NO_TLS
-        logging.INFO("TLS Output:" + str(LDAP3ADBackend.pool))
-        
+
+        # then, try to connect with user/pass from settings
         con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=getattr(
                              settings, password_field) or settings.LDAP_BIND_PASSWORD,
                          authentication=authentication, check_names=True)
+
 
         # search for the desired user
         user_dn = None
