@@ -97,7 +97,7 @@ class LDAP3ADBackend(ModelBackend):
     tls_bool = False
 
     def init_and_get_ldap_user(self, username):
-        tls_bool = False
+        
         if username is None or username == '':
             return None, None
 
@@ -156,7 +156,8 @@ class LDAP3ADBackend(ModelBackend):
             bind = AUTO_BIND_TLS_BEFORE_BIND
         else:
             bind = AUTO_BIND_NO_TLS
-
+        logging.INFO("TLS Output:" + str(LDAP3ADBackend.pool))
+        
         con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=getattr(
                              settings, password_field) or settings.LDAP_BIND_PASSWORD,
