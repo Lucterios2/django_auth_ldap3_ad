@@ -98,7 +98,6 @@ class LDAP3ADBackend(ModelBackend):
     tls_bool = False
 
     def init_and_get_ldap_user(self, username):
-        
         if username is None or username == '':
             return None, None
 
@@ -157,8 +156,7 @@ class LDAP3ADBackend(ModelBackend):
 
         # then, try to connect with user/pass from settings
         con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
-                         password=getattr(
-                             settings, password_field) or settings.LDAP_BIND_PASSWORD,
+                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD,
                          authentication=authentication, check_names=True)
 
 
@@ -290,8 +288,7 @@ class LDAP3ADBackend(ModelBackend):
                     usr.save()
                     logger.info("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (username,))
                     if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
-                        grps = Group.objects.exclude(
-                            name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
+                        grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
                     else:
                         grps = Group.objects.all()
                     for grp in grps:
@@ -343,13 +340,16 @@ class LDAP3ADBackend(ModelBackend):
                 con.unbind()
 
                 # if set, apply min group membership
-                logger.info("AUDIT LOGIN FOR: %s BEFORE MIN GROUP MEMBERSHIP" % (username,))
+                logger.info("AUDIT LOGIN FOR: %s BEFORE MIN GROUP MEMBERSHIP" %
+                            (username,))
                 if hasattr(settings, 'LDAP_MIN_GROUPS'):
                     for grp in settings.LDAP_MIN_GROUPS:
-                        logger.info("AUDIT LOGIN FOR: %s MIN GROUP MEMBERSHIP: %s" % (username, grp))
+                        logger.info("AUDIT LOGIN FOR: %s MIN GROUP MEMBERSHIP: %s" %
+                                    (username, grp))
                         try:
                             usr.groups.add(Group.objects.get(name=grp))
-                            logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MIN MEMBERSHIP" % (username, grp))
+                            logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MIN MEMBERSHIP" %
+                                        (username, grp))
                         except ObjectDoesNotExist:
                             pass
 
@@ -360,7 +360,7 @@ class LDAP3ADBackend(ModelBackend):
                     usr.dn = user_dn
 
                 # if you want to know in which business unit the user is, check it
-                if hasattr(settings, 'LDAP_STORE_BUSINESS_UNIT') \
+                if hasattr(settings, 'LDAP_STORE_BUSINESS_UNIT') 
                         and isinstance(settings.LDAP_STORE_BUSINESS_UNIT, dict):
                     user_bu = ','.join(user_dn.split(',')[1:])
 
