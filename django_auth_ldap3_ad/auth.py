@@ -158,8 +158,10 @@ class LDAP3ADBackend(ModelBackend):
             # from rechie, pullrequest #30
             # convert `user_attribs` values to string if the returned value is a list
             for attrib in user_attribs:
-                if isinstance(user_attribs[attrib], list):
+                if isinstance(user_attribs[attrib], list) and user_attribs[attrib]:
                     user_attribs[attrib] = user_attribs[attrib][0]
+                else:
+                    user_attribs[attrib] = None
         con.unbind()
         return user_dn, user_attribs
 
