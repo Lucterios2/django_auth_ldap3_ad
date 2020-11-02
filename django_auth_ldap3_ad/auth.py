@@ -28,13 +28,14 @@ import random
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM
+from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE, NTLM, AUTO_BIND_TLS_BEFORE_BIND, AUTO_BIND_NO_TLS
 from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from django.utils import timezone
 import logging
 from django.contrib.auth.signals import user_logged_in
 from django.contrib.auth.backends import ModelBackend
+
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ class LDAP3ADBackend(ModelBackend):
     # do we use LDAP Groups?
     use_groups = False
 
+    # is tls set?
+    tls_bool = False
+
     def init_and_get_ldap_user(self, username):
         if username is None or username == '':
             return None, None
@@ -138,13 +142,23 @@ class LDAP3ADBackend(ModelBackend):
                     server = Server(srv['host'], srv['port'], srv['use_ssl'], get_info=srv['get_info'])
                 else:
                     server = Server(srv['host'], srv['port'], srv['use_ssl'])
-
+                # TLS Settings:
+                if 'tls' in srv:
+                    server.tls = srv['tls']
+                    self.tls_bool = True
                 LDAP3ADBackend.pool.add(server)
 
+        # Check to see if tls is enabled in the instance, alter the bind method it True
+        if self.tls_bool is True:
+            bind = AUTO_BIND_TLS_BEFORE_BIND
+        else:
+            bind = AUTO_BIND_NO_TLS
+
         # then, try to connect with user/pass from settings
-        con = Connection(LDAP3ADBackend.pool, auto_bind=True, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
+        con = Connection(LDAP3ADBackend.pool, auto_bind=bind, client_strategy=SYNC, user=settings.LDAP_BIND_USER,
                          password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD,
                          authentication=authentication, check_names=True)
+
 
         # search for the desired user
         user_dn = None
@@ -187,7 +201,14 @@ class LDAP3ADBackend(ModelBackend):
         if user_dn is not None and user_attribs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
-            con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password)
+
+            #Check for tls option here and tunnel connection.
+            if self.tls_bool is True:
+                bind = AUTO_BIND_TLS_BEFORE_BIND
+            else:
+                bind = AUTO_BIND_NO_TLS
+
+            con = Connection(LDAP3ADBackend.pool, user=user_dn, password=password, auto_bind=bind)
             if con.bind():
                 logger.info("AUDIT SUCCESS LOGIN FOR: %s" % (username,))
                 user_model = get_user_model()
@@ -200,7 +221,7 @@ class LDAP3ADBackend(ModelBackend):
                 user_model.bu = lambda: None
                 try:
                     # try to retrieve user from database and update it
-                    username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username') 
+                    username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username')
                     lookup_username = user_attribs[settings.LDAP_ATTRIBUTES_MAP[username_field]]
                     usr = user_model.objects.get(**{"{0}__iexact".format(username_field): lookup_username})
                 except user_model.DoesNotExist:

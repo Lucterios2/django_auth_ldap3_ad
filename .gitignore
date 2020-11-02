@@ -62,4 +62,7 @@ target/
 # PyCharm project
 .idea
 
+#VS Code
+.vscode
+
 register_and_upload_new_version.bat
