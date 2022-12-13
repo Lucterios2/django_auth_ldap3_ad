@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='django-auth-ldap3-ad',
-    version='1.6.33',
+    version='1.7.1',
     packages=['django_auth_ldap3_ad'],
     url='https://github.com/Lucterios2/django_auth_ldap3_ad',
     license='GPL V3',
@@ -13,6 +13,7 @@ setup(
         'Development Status :: 5 - Production/Stable',
         'Environment :: Web Environment',
         'Framework :: Django :: 1.11',
+        'Framework :: Django :: 3.2',
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',

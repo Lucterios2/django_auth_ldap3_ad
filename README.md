@@ -100,9 +100,8 @@ In LDAP, group membership is onwed by groups objects. Depending on the implement
 
 help for filters writing:
 
-- [RedHat/CentOS CDS (based on OpenLDAP)](https://www.centos.org/docs/5/html/CDS/ag/8.0/Finding_Directory_Entries-LDAP_Search_Filters.html)
 - [MS Active Directory](https://msdn.microsoft.com/en-us/library/aa746475%28v=vs.85%29.aspx)
-- [ldapwiki (general LDAP purpose)](http://ldapwiki.willeke.com/wiki/LDAP)
+- [ldapwiki (general LDAP purpose)](https://ldapwiki.com)
 
 ```python
 LDAP_SEARCH_BASE = "dc=domain,dc=local"
@@ -116,6 +115,11 @@ LDAP_USER_SEARCH_FILTER = "(&(|(userPrincipalName={0})(sAMAccountName={0}))(obje
 ```
 will match the username in either `sAMAccountName` or `userPrincipalName` so that users can then login with username or email address.
 
+It is also possible to check if the user is a member of a given group. Then specify the list of acceter groups.
+If this field is not present, the control is ignored.
+```python
+LDAP_USER_SEARCH_GROUPS = ["CN=allow,dc=domain,dc=local", ]
+```
 
 ### attributes mapping
 
@@ -157,6 +161,9 @@ If this parameter is set, the module will kept users in these locally-defined gr
 LDAP_IGNORED_LOCAL_GROUPS = ["MyLocalDjangoGroup", ]
 ```
 
+If this parameter is assigned to "None", no group refresh is performed.
+
+
 ### groups mapping to django's groups
 
 First parameter of this group enables to use LDAP group binding or disable it to use local database groups only. A the first release of this module does have this parameter, for reverse compatibility, if this parameter does not exists, it is considered true. If it is configured to false, other parameters of this group wont be used nor checked.
@@ -195,6 +202,15 @@ You will retrieve the value in the session this way:
 
 ```python
 request.session['LDAP_USER_DN']
+```
+
+### Force user to active
+
+Par défaut, l'utilisateur est forcé à actif s'il a pu se connecter.
+Néanmoins, we pouvez désactiver ce forcage par l'usage du paramètre:
+
+```python
+LDAP_USER_FORCE_ACTIVE = False
 ```
 
 ### Determine and store user business unit in session for future use
