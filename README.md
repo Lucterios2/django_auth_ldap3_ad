@@ -204,13 +204,13 @@ You will retrieve the value in the session this way:
 request.session['LDAP_USER_DN']
 ```
 
-### Force user to active
+### Check user to active
 
-Par défaut, l'utilisateur est forcé à actif s'il a pu se connecter.
-Néanmoins, we pouvez désactiver ce forcage par l'usage du paramètre:
+By default, the user can authenticate without checking that the Django user is active.
+However, you can control the active state by using the parameter:
 
 ```python
-LDAP_USER_FORCE_ACTIVE = False
+LDAP_USER_CHECK_ACTIVE = False
 ```
 
 ### Determine and store user business unit in session for future use
@@ -283,3 +283,32 @@ adu.update_password_ad_user(user_dn, password)
 adu.update_ad_user(user_dn, {'ldapAttrib1': 'value1', 'ldapAttrib2': 'value2'})
 adu.activate_ad_user(user_dn)
 ```
+
+## NEW in 1.7 series:
+
+In this series of versions, we have improved the principle of the previous functionality.
+Now it is possible to create a user in OpenLDAP or MS Active Directory with the same interface.
+The module then adapts automatically according to the LDAP_ENGINE parameter.
+
+Once your configuration updated, you will be able to use the helpers:
+
+```python
+from django_auth_ldap3_ad import UserManager
+
+adu = UserManager()
+adu.create_user(user_dn, firstname, lastname, login, email, description)
+adu.update_password_user(user_dn, password)
+adu.update_user(user_dn, ldapAttrib1= 'value1', ldapAttrib2= 'value2'})
+adu.activate_user(user_dn) # only for MS Active Directory
+```
+
+Additionally, if you set the LDAP_BIND_ADMIN and LDAP_BIND_ADMIN_PASS parameters,
+Django will try to write to OpenLDAP/AD when an operator wants to register a Django user.
+This will then allow your directory to be administered through Django's user management tools.
+Django will check if a user with the same LDAP_USER_MODEL_USERNAME_FIELD exists in the directory.
+The user will then either be modified or created.
+If the LDAP_USER_SUFFIX parameter is specified,
+this is automatically added to the username and "dn" field when the OpenLDAP/AD user is created.
+
+Note then that if you use LDAP_SUPERUSER_GROUPS, LDAP_STAFF_GROUPS and LDAP_GROUPS_MAP, 
+Django will add or remove your users based on their SuperAdmin, Staff status, or associated Django groups.

@@ -25,11 +25,13 @@ import logging
 from django.conf import settings
 
 from django_auth_ldap3_ad.ad_users import Aduser
+from django_auth_ldap3_ad.openldap_users import OpenLDAPUser
+from django_auth_ldap3_ad.abstract_users import AbstractUser
 
 logger = logging.getLogger(__name__)
 
 
-class LDAPUser:
+class UserManager:
     def __init__(self):
         self.mode = 'AD'
         if hasattr(settings, 'LDAP_ENGINE'):
@@ -37,35 +39,30 @@ class LDAPUser:
 
     def create_user(self, user_dn, firstname, lastname, login, mail=None, description=None):
         if self.mode == 'AD':
-            adu = Aduser()
-            return adu.create_ad_user(user_dn, firstname, lastname, login, mail, description)
+            with Aduser() as adu:
+                return adu.create_ad_user(user_dn, firstname, lastname, login, mail, description)
+        else:
+            with OpenLDAPUser() as ldapu:
+                return ldapu.create_record(user_dn, givenName=firstname, sn=lastname, cn=login, mail=mail, description=description)
+
+    def update_user(self, user_dn, attributes):
+        with AbstractUser.factory() as user:
+            return user.update_record(user_dn, **attributes)
+
+    def update_password_user(self, user_dn, newpassword):
+        with AbstractUser.factory() as user:
+            return user.update_password(user_dn, newpassword)
+
+    def activate_user(self, user_dn, never_expires=False):
+        if self.mode == 'AD':
+            with Aduser() as adu:
+                return adu.activate_ad_user(user_dn, never_expires)
         else:
             return False
 
-    def update_ad_user(self, user_dn, attributes):
+    def deactivate_user(self, user_dn, never_expires=False):
         if self.mode == 'AD':
-            adu = Aduser()
-            return adu.update_ad_user(user_dn, attributes)
-        else:
-            return False
-
-    def activate_ad_user(self, user_dn, never_expires=False):
-        if self.mode == 'AD':
-            adu = Aduser()
-            return adu.activate_ad_user(user_dn, never_expires)
-        else:
-            return False
-
-    def update_password_ad_user(self, user_dn, newpassword):
-        if self.mode == 'AD':
-            adu = Aduser()
-            return adu.update_password_ad_user(user_dn, newpassword)
-        else:
-            return False
-
-    def deactivate_ad_user(self, user_dn, never_expires=False):
-        if self.mode == 'AD':
-            adu = Aduser()
-            return adu.deactivate_ad_user(user_dn, never_expires)
+            with Aduser() as adu:
+                return adu.deactivate_ad_user(user_dn, never_expires)
         else:
             return False

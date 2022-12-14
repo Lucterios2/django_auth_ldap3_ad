@@ -19,12 +19,13 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 """
-import ssl
-from ldap3 import Tls
-from django.conf import settings
-from ldap3 import Server, ServerPool, Connection, FIRST, SIMPLE, MODIFY_REPLACE, MODIFY_ADD
-from django.core.exceptions import ImproperlyConfigured
 import logging
+
+from ldap3 import MODIFY_REPLACE, MODIFY_ADD, MODIFY_DELETE, MODIFY_INCREMENT
+
+from django.conf import settings
+
+from django_auth_ldap3_ad.abstract_users import AbstractUser
 
 """
 scripts wildly inspired from:
@@ -34,7 +35,7 @@ https://mespotesgeek.fr/fr/python-et-utilisateurs-active-directory/
 logger = logging.getLogger(__name__)
 
 
-class Aduser:
+class Aduser(AbstractUser):
 
     # Constants for AD userAccountControl:
     ADS_UF_ACCOUNT_DISABLE = 2
@@ -59,38 +60,16 @@ class Aduser:
     ADS_UF_NO_AUTH_DATA_REQUIRED = 33554432
     ADS_UF_PARTIAL_SECRETS_ACCOUNT = 67108864
 
-    def __init__(self):
-        self.pool = None
-        self.con = None
-        self.connect()
+    @classmethod
+    def can_used(cls):
+        return hasattr(settings, 'LDAP_ENGINE') and (settings.LDAP_ENGINE == 'AD') and AbstractUser.can_used()
 
-    def connect(self):
-        # check configuration
-        if not (hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_ADMIN') and
-                hasattr(settings, 'LDAP_BIND_ADMIN_PASS') and hasattr(settings, 'LDAP_AD_DOMAIN')
-                and hasattr(settings, 'LDAP_CERT_FILE')
-                ):
-            raise ImproperlyConfigured()
-
-        # first: build server pool from settings
-        tls = Tls(validate=ssl.CERT_OPTIONAL, version=ssl.PROTOCOL_TLSv1, ca_certs_file=settings.LDAP_CERT_FILE)
-
-        if self.pool is None:
-            self.pool = ServerPool(None, pool_strategy=FIRST, active=True)
-            for srv in settings.LDAP_SERVERS:
-                # Only add servers that supports SSL, impossible to make changes without
-                if srv['use_ssl']:
-                    server = Server(srv['host'], srv['port'], srv['use_ssl'], tls=tls)
-                    self.pool.add(server)
-
-        # then, try to connect with user/pass from settings
-        self.con = Connection(self.pool, auto_bind=True, authentication=SIMPLE,
-                              user=settings.LDAP_BIND_ADMIN, password=settings.LDAP_BIND_ADMIN_PASS)
+    def update_password(self, user_dn, newpassword):
+        unicode_pass = '"%s"' % newpassword
+        password_value = unicode_pass.encode("utf-16-le")
+        return self.update_record(user_dn, unicodePwd=password_value)
 
     def create_ad_user(self, user_dn, firstname, lastname, samaccountname, mail=None, description=None):
-        if self.con is None:
-            self.connect()
-
         user_attribs = {
             'objectClass': ['user'],
             'cn': "%s %s" % (firstname, lastname),
@@ -103,58 +82,31 @@ class Aduser:
             'userPrincipalName': "%s@%s" % (samaccountname, settings.LDAP_AD_DOMAIN)
             # 514 will set user account to disabled, 512 is enable but can't create directly
         }
-
         if mail is not None:
             user_attribs['mail'] = mail
         if description is not None:
             user_attribs['description'] = description
-
-        logger.debug(self.con.add(
-            user_dn,
-            attributes=user_attribs
-        ))
-        return self.con.result
+        return self.create_record(self, user_dn, **user_attribs)
 
     def update_ad_user(self, user_dn, attributes, mode='REPLACE'):
-        if self.con is None:
-            self.connect()
-
-        ACTION = MODIFY_REPLACE
+        action = MODIFY_REPLACE
         if mode == 'ADD':
-            ACTION = MODIFY_ADD
+            action = MODIFY_ADD
         elif mode == 'APPEND':
-            ACTION = 'MODIFY_INCREMENT'
+            action = MODIFY_INCREMENT
         elif mode == 'DELETE':
-            ACTION = 'MODIFY_DELETE'
-
-        attribs = {}
-        for attr in attributes.keys():
-            attribs[attr] = [
-                (ACTION, [attributes[attr]])
-            ]
-
-        self.con.modify(
-            user_dn,
-            attribs
-        )
-        return self.con.result
+            action = MODIFY_DELETE
+        return self.update_record(user_dn, action=action, **attributes)
 
     def activate_ad_user(self, user_dn, never_expires=False):
         if never_expires:
-            return self.update_ad_user(user_dn, {"userAccountControl":
-                                                 Aduser.ADS_UF_NORMAL_ACCOUNT + Aduser.ADS_UF_DONT_EXPIRE_PASSWD})
-        return self.update_ad_user(user_dn, {"userAccountControl": Aduser.ADS_UF_NORMAL_ACCOUNT})
+            return self.update_record(user_dn, userAccountControl=Aduser.ADS_UF_NORMAL_ACCOUNT + Aduser.ADS_UF_DONT_EXPIRE_PASSWD)
+        return self.update_record(user_dn, userAccountControl=Aduser.ADS_UF_NORMAL_ACCOUNT)
 
     def deactivate_ad_user(self, user_dn, never_expires=False):
         if never_expires:
-            return self.update_ad_user(user_dn, {"userAccountControl":
-                                                 Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT +
-                                                 Aduser.ADS_UF_DONT_EXPIRE_PASSWD})
-        return self.update_ad_user(user_dn, {"userAccountControl":
-                                             Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT})
+            return self.update_record(user_dn, userAccountControl=Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT + Aduser.ADS_UF_DONT_EXPIRE_PASSWD)
+        return self.update_ad_user(user_dn, userAccountControl=Aduser.ADS_UF_ACCOUNT_DISABLE + Aduser.ADS_UF_NORMAL_ACCOUNT)
 
     def update_password_ad_user(self, user_dn, newpassword):
-        unicode_pass = '"%s"' % newpassword
-        password_value = unicode_pass.encode("utf-16-le")
-
-        return self.update_ad_user(user_dn, {"unicodePwd": password_value})
+        self.update_password(user_dn, newpassword)

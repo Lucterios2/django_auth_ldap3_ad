@@ -24,34 +24,23 @@ along with Lucterios.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import string
 import random
+import logging
+from six import string_types
+from ldap3 import Connection, SYNC, SIMPLE
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from ldap3 import Server, ServerPool, Connection, FIRST, SYNC, SIMPLE
-from six import string_types
 from django.core.exceptions import ObjectDoesNotExist, ImproperlyConfigured
 from django.utils import timezone
-import logging
-from django.contrib.auth.signals import user_logged_in
 from django.contrib.auth.backends import ModelBackend
+
+from django_auth_ldap3_ad.abstract_users import AbstractUser, get_server_pool
 
 logger = logging.getLogger(__name__)
 
 
-def user_logged_in_handler(sender, request, user, **kwargs):
-    """
-    in authenticate method, the request is not available so, the session engine is either not available.
-    By using this signal binding, we can get the special attributes added to the object by the authenticate
-    method and save them in the current session
-    """
-    if 'dn' in user.__dict__ and user.dn is not None:
-        request.session['LDAP_USER_DN'] = user.dn
-    if 'bu' in user.__dict__ and user.bu is not None:
-        request.session['LDAP_USER_BU'] = user.bu
-
-
-user_logged_in.connect(user_logged_in_handler)
+AbstractUser.factory().connect_to_signals()
 
 
 def create_password():
@@ -99,6 +88,7 @@ class LDAP3ADBackend(ModelBackend):
         self.user = None
         self.attributs = None
         self.ldap_engine = 'AD'  # to keep compatibility with previous version
+        self.group_search_filter = ''
 
     def check_configuration(self):
         # add LDAP_BIND_PASSWORD as password field
@@ -129,26 +119,14 @@ class LDAP3ADBackend(ModelBackend):
 
         return password_field, authentication
 
-    def build_server_pool(self):
-        # first: build server pool from settings
-        if LDAP3ADBackend.pool is None:
-            LDAP3ADBackend.pool = ServerPool(None, pool_strategy=FIRST, active=True)
-            for srv in settings.LDAP_SERVERS:
-                # from rechie, pullrequest #30
-                # check if LDAP_SERVERS settings has set ldap3 `get_info` parameter
-                if 'get_info' in srv:
-                    server = Server(srv['host'], srv['port'], srv['use_ssl'], get_info=srv['get_info'])
-                else:
-                    server = Server(srv['host'], srv['port'], srv['use_ssl'])
-                LDAP3ADBackend.pool.add(server)
-
     def init_and_get_ldap_user(self):
         # search capacities differs on LDAP engines.
         if hasattr(settings, 'LDAP_ENGINE') and settings.LDAP_ENGINE is not None:
             self.ldap_engine = settings.LDAP_ENGINE
 
         password_field, authentication = self.check_configuration()
-        self.build_server_pool()
+        if LDAP3ADBackend.pool is None:
+            LDAP3ADBackend.pool = get_server_pool()
 
         self.user_dn = None
         self.attributs = None
@@ -157,8 +135,10 @@ class LDAP3ADBackend(ModelBackend):
                         password=getattr(settings, password_field) or settings.LDAP_BIND_PASSWORD,
                         authentication=authentication, check_names=True) as con:
             # search for the desired user
+            attributes = list(settings.LDAP_ATTRIBUTES_MAP.values())
+            attributes.append('userPassword')
             con.search(settings.LDAP_SEARCH_BASE, settings.LDAP_USER_SEARCH_FILTER.replace('%s', '{0}').format(self.username),
-                       attributes=list(settings.LDAP_ATTRIBUTES_MAP.values()))
+                       attributes=attributes)
             if con.result['result'] == 0 and len(con.response) > 0 and 'dn' in con.response[0].keys():
                 self.user_dn = con.response[0]['dn']
                 self.attributs = con.response[0]['attributes']
@@ -172,7 +152,7 @@ class LDAP3ADBackend(ModelBackend):
             if hasattr(settings, 'LDAP_USER_SEARCH_GROUPS') and isinstance(settings.LDAP_USER_SEARCH_GROUPS, list) and len(settings.LDAP_USER_SEARCH_GROUPS) > 0:
                 con.search(settings.LDAP_GROUPS_SEARCH_BASE if hasattr(settings, 'LDAP_GROUPS_SEARCH_BASE') else settings.LDAP_SEARCH_BASE,
                            "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER, self.user_dn), attributes=['dn'])
-                if con.result['result'] == 0 and len(con.response) > 0:
+                if con.result['result'] == 0:
                     user_in_search_group = False
                     for resp in con.response:
                         if resp['dn'] in settings.LDAP_USER_SEARCH_GROUPS:
@@ -194,17 +174,18 @@ class LDAP3ADBackend(ModelBackend):
         # inspired from
         # https://github.com/Lucterios2/django_auth_ldap3_ad/commit/ce24d4687f85ed12a0c4c796022ae7dcb3ff38e3
         # by jobec
+        self.group_search_filter = settings.LDAP_GROUPS_SEARCH_FILTER
         all_ldap_groups = []
         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(settings.LDAP_GROUPS_MAP.values()):
             all_ldap_groups.append("(distinguishedName={0})".format(group))
 
         if len(all_ldap_groups) > 0:
-            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
-                                                                       "".join(all_ldap_groups))
+            self.group_search_filter = "(&{0}(|{1}))".format(settings.LDAP_GROUPS_SEARCH_FILTER,
+                                                             "".join(all_ldap_groups))
 
     def set_groups_search_filter_OpenLDAP(self):
         # add filter on member
-        settings.LDAP_GROUPS_SEARCH_FILTER = "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER, self.user_dn)
+        self.group_search_filter = "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER, self.user_dn)
         # add filter on groups to match
         all_ldap_groups = []
         for group in settings.LDAP_SUPERUSER_GROUPS + settings.LDAP_STAFF_GROUPS + list(settings.LDAP_GROUPS_MAP.values()):
@@ -212,9 +193,7 @@ class LDAP3ADBackend(ModelBackend):
                 all_ldap_groups.append("(%s)" % group.split(',')[0])
 
         if len(all_ldap_groups) > 0:
-            settings.LDAP_GROUPS_SEARCH_FILTER = "(&{0}(|{1}))".format(
-                settings.LDAP_GROUPS_SEARCH_FILTER,
-                "".join(all_ldap_groups))
+            self.group_search_filter = "(&{0}(|{1}))".format(self.group_search_filter, "".join(all_ldap_groups))
 
     def _return_user(self):
         """
@@ -231,6 +210,20 @@ class LDAP3ADBackend(ModelBackend):
         except user_model.DoesNotExist:
             # user does not exist in database already, create it
             self.user = user_model()
+        self.user._ldapauth = True  # internal field to know that this user is manage by auth
+
+    def _check_internal_password(self, password):
+        if AbstractUser.factory().can_used():
+            self._return_user()
+            try:
+                if (self.user.id is not None) and self.user.check_password(password):
+                    with AbstractUser.factory() as ldap_user:
+                        ldap_user.update_password(self.user_dn, password)
+                        logger.debug(" > change of internal password from %s" % (self.user_dn, ))
+                else:
+                    logger.debug(" > bad internal password from %s" % (self.user_dn, ))
+            finally:
+                self.user = None
 
     def _update_user(self, password):
         """
@@ -251,13 +244,11 @@ class LDAP3ADBackend(ModelBackend):
         else:
             self.user.set_password(password)
         self.user.last_login = timezone.now()
-        if getattr(settings, 'LDAP_USER_FORCE_ACTIVE', True):
-            self.user.is_active = True
         self.user.save()
 
     def _clean_old_group_membership(self):
         if getattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS', []) is not None:
-            logger.info("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (self.username, ))
+            logger.debug("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (self.username, ))
             if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
                 grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
             else:
@@ -279,53 +270,53 @@ class LDAP3ADBackend(ModelBackend):
             alter_staff_membership = True
         # then re-fill
         connection_ldap.search(settings.LDAP_GROUPS_SEARCH_BASE if hasattr(settings, 'LDAP_GROUPS_SEARCH_BASE') else settings.LDAP_SEARCH_BASE,
-                               settings.LDAP_GROUPS_SEARCH_FILTER, attributes=['cn', settings.LDAP_GROUP_MEMBER_ATTRIBUTE])
+                               self.group_search_filter, attributes=['cn', settings.LDAP_GROUP_MEMBER_ATTRIBUTE])
         if len(connection_ldap.response) > 0:
             for resp in connection_ldap.response:
                 if 'attributes' in resp and settings.LDAP_GROUP_MEMBER_ATTRIBUTE in resp['attributes'] \
                         and self.user_dn in resp['attributes'][settings.LDAP_GROUP_MEMBER_ATTRIBUTE]:
 
-                    logger.info("AUDIT LOGIN FOR: %s DETECTED IN GROUP %s" %
-                                (self.username, resp['dn']))
+                    logger.debug("AUDIT LOGIN FOR: %s DETECTED IN GROUP %s" %
+                                 (self.username, resp['dn']))
                     # special super user group
                     if alter_superuser_membership:
                         if resp['dn'] in settings.LDAP_SUPERUSER_GROUPS:
                             self.user.is_superuser = True
-                            logger.info("AUDIT LOGIN FOR: %s GRANTING ADMIN RIGHTS" %
-                                        (self.username,))
+                            logger.debug("AUDIT LOGIN FOR: %s GRANTING ADMIN RIGHTS" %
+                                         (self.username,))
                         else:
-                            logger.info("AUDIT LOGIN FOR: %s DENY ADMIN RIGHTS" %
-                                        (self.username,))
+                            logger.debug("AUDIT LOGIN FOR: %s DENY ADMIN RIGHTS" %
+                                         (self.username,))
                     # special staff group
                     if alter_staff_membership:
                         if resp['dn'] in settings.LDAP_STAFF_GROUPS:
                             self.user.is_staff = True
-                            logger.info("AUDIT LOGIN FOR: %s GRANTING STAFF RIGHTS" %
-                                        (self.username,))
+                            logger.debug("AUDIT LOGIN FOR: %s GRANTING STAFF RIGHTS" %
+                                         (self.username,))
                         else:
-                            logger.info("AUDIT LOGIN FOR: %s DENY STAFF RIGHTS" %
-                                        (self.username,))
+                            logger.debug("AUDIT LOGIN FOR: %s DENY STAFF RIGHTS" %
+                                         (self.username,))
                     # other groups membership
                     for grp in settings.LDAP_GROUPS_MAP.keys():
                         if resp['dn'] == settings.LDAP_GROUPS_MAP[grp]:
                             try:
-                                logger.info(grp)
+                                logger.debug(grp)
                                 self.user.groups.add(Group.objects.get(name=grp))
-                                logger.info("AUDIT LOGIN FOR: %s ADDING GROUP %s MEMBERSHIP" %
-                                            (self.username, grp))
+                                logger.debug("AUDIT LOGIN FOR: %s ADDING GROUP %s MEMBERSHIP" %
+                                             (self.username, grp))
                             except ObjectDoesNotExist:
                                 pass
 
     def _assign_mingroup_sessioninfo(self):
         # if set, apply min group membership
-        logger.info("AUDIT LOGIN FOR: %s BEFORE MIN GROUP MEMBERSHIP" % (self.username, ))
+        logger.debug("AUDIT LOGIN FOR: %s BEFORE MIN GROUP MEMBERSHIP" % (self.username, ))
         if hasattr(settings, 'LDAP_MIN_GROUPS'):
             for grp in settings.LDAP_MIN_GROUPS:
-                logger.info(
+                logger.debug(
                     "AUDIT LOGIN FOR: %s MIN GROUP MEMBERSHIP: %s" % (self.username, grp))
                 try:
                     self.user.groups.add(Group.objects.get(name=grp))
-                    logger.info(
+                    logger.debug(
                         "AUDIT LOGIN FOR: %s ADDING GROUP %s MIN MEMBERSHIP" % (self.username, grp))
                 except ObjectDoesNotExist:
                     pass
@@ -339,7 +330,7 @@ class LDAP3ADBackend(ModelBackend):
                 self.user.bu = settings.LDAP_STORE_BUSINESS_UNIT[user_bu]
 
     def authenticate(self, request, username=None, password=None):
-        logger.info("AUDIT BEGIN LOGIN PROCESS FOR: %s" % (username,))
+        logger.debug("AUDIT BEGIN LOGIN PROCESS FOR: %s" % (username,))
         if username is None or username == '':
             return None
         self.username = username
@@ -348,6 +339,8 @@ class LDAP3ADBackend(ModelBackend):
         if self.user_dn is not None and self.attributs is not None:
             # now, we know the dn of the user, we try a simple bind. This way,
             # the LDAP checks the password with it's algorithm and the active state of the user in one test
+            if self.attributs['userPassword'] is None:
+                self._check_internal_password(password)
             con = Connection(LDAP3ADBackend.pool, user=self.user_dn, password=password)
             if con.bind():
                 try:
@@ -365,7 +358,7 @@ class LDAP3ADBackend(ModelBackend):
                         # if using OpenLDAP, filter groups in search by membership of the user
                         elif self.ldap_engine == 'OpenLDAP':
                             self.set_groups_search_filter_OpenLDAP()
-                        logger.info("AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
+                        logger.debug("AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
                         self._clean_old_group_membership()
                         self._assign_group_superuser_staff(con)
                         self.user.save()
@@ -374,3 +367,9 @@ class LDAP3ADBackend(ModelBackend):
                 self._assign_mingroup_sessioninfo()
             return self.user
         return None
+
+    def user_can_authenticate(self, user):
+        if getattr(settings, 'LDAP_USER_CHECK_ACTIVE', True):
+            return True
+        else:
+            return super(LDAP3ADBackend, self).user_can_authenticate(user)
