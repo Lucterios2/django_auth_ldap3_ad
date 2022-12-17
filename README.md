@@ -115,12 +115,6 @@ LDAP_USER_SEARCH_FILTER = "(&(|(userPrincipalName={0})(sAMAccountName={0}))(obje
 ```
 will match the username in either `sAMAccountName` or `userPrincipalName` so that users can then login with username or email address.
 
-It is also possible to check if the user is a member of a given group. Then specify the list of acceter groups.
-If this field is not present, the control is ignored.
-```python
-LDAP_USER_SEARCH_GROUPS = ["CN=allow,dc=domain,dc=local", ]
-```
-
 ### attributes mapping
 
 Mandatory parameter.
@@ -153,17 +147,6 @@ If this parameter is set, the module takes care that each connected user is memb
 LDAP_MIN_GROUPS = ["MyDjangoGroup", ]
 ```
 
-### kept users in local groups
-
-If this parameter is set, the module will kept users in these locally-defined groups. Otherwise, every group membership is refreshed (removed and readded) when a user authenticates. 
-
-```python
-LDAP_IGNORED_LOCAL_GROUPS = ["MyLocalDjangoGroup", ]
-```
-
-If this parameter is assigned to "None", no group refresh is performed.
-
-
 ### groups mapping to django's groups
 
 First parameter of this group enables to use LDAP group binding or disable it to use local database groups only. A the first release of this module does have this parameter, for reverse compatibility, if this parameter does not exists, it is considered true. If it is configured to false, other parameters of this group wont be used nor checked.
@@ -190,6 +173,17 @@ LDAP_GROUPS_MAP = {
 }
 ```
 
+### Use LDAP groups only for admin and staff
+
+With parameter LDAP_IGNORED_LOCAL_GROUPS every group membership is refreshed (removed and readded) when a user authenticates. 
+
+If this parameter is assigned to "True", no group refresh is performed (by default, it is set to "False").
+LDAP_USE_LDAP_GROUPS is used only to check superuser and staff status.
+
+```python
+USE_LDAP_GROUPS_FOR_ADMIN_STAFF_ONLY = True
+```
+
 ### Store user DN in session for future use
 
 You can ask this backend to store the LDAP user DN in the current session to be able to use it in another app.
@@ -210,7 +204,7 @@ By default, the user can authenticate without checking that the Django user is a
 However, you can control the active state by using the parameter:
 
 ```python
-LDAP_USER_CHECK_ACTIVE = False
+LDAP_UNCHECK_USER_ACTIVE = False
 ```
 
 ### Determine and store user business unit in session for future use
@@ -302,13 +296,15 @@ adu.update_user(user_dn, ldapAttrib1= 'value1', ldapAttrib2= 'value2'})
 adu.activate_user(user_dn) # only for MS Active Directory
 ```
 
-Additionally, if you set the LDAP_BIND_ADMIN and LDAP_BIND_ADMIN_PASS parameters,
+Additionally, if you set "True" LDAP_WRITTEN_BY_DJANGO,
 Django will try to write to OpenLDAP/AD when an operator wants to register a Django user.
+For that, you must to set the LDAP_BIND_ADMIN and LDAP_BIND_ADMIN_PASS parameters too.
 This will then allow your directory to be administered through Django's user management tools.
 Django will check if a user with the same LDAP_USER_MODEL_USERNAME_FIELD exists in the directory.
 The user will then either be modified or created.
-If the LDAP_USER_SUFFIX parameter is specified,
+If the LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX parameter is specified,
 this is automatically added to the username and "dn" field when the OpenLDAP/AD user is created.
 
 Note then that if you use LDAP_SUPERUSER_GROUPS, LDAP_STAFF_GROUPS and LDAP_GROUPS_MAP, 
 Django will add or remove your users based on their SuperAdmin, Staff status, or associated Django groups.
+If LDAP_USER_SEARCH_FILTER contain 'memberof' term, this user is add in associated LDAP group.

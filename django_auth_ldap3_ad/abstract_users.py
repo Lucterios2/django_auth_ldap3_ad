@@ -92,7 +92,7 @@ class AbstractUser(NoneUser):
 
     @classmethod
     def can_used(cls):
-        return hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_ADMIN') and hasattr(settings, 'LDAP_BIND_ADMIN_PASS')
+        return (getattr(settings, 'LDAP_WRITTEN_BY_DJANGO', False) is True) and hasattr(settings, 'LDAP_SERVERS') and hasattr(settings, 'LDAP_BIND_ADMIN') and hasattr(settings, 'LDAP_BIND_ADMIN_PASS')
 
     @classmethod
     def factory(cls):
@@ -210,6 +210,17 @@ class AbstractUser(NoneUser):
             cls._connect_to_signals()
         return
 
+    @staticmethod
+    def get_user_search_group():
+        MEMBEROF = 'memberof'
+        settings.LDAP_USER_SEARCH_FILTER
+        pos_begin = settings.LDAP_USER_SEARCH_FILTER.find(MEMBEROF)
+        pos_end = settings.LDAP_USER_SEARCH_FILTER.find(')', pos_begin)
+        if (pos_begin != -1) and (pos_end != -1):
+            return settings.LDAP_USER_SEARCH_FILTER[pos_begin + len(MEMBEROF) + 1:pos_end]
+        else:
+            return None
+
     @classmethod
     def after_save_user(cls, sender, instance, **kwargs):
         if hasattr(instance, "_ldap_dn") and hasattr(instance, "_ldap_fields"):
@@ -223,7 +234,7 @@ class AbstractUser(NoneUser):
                             logger.warning(" > User %s has not field %s" % (instance.username, fieldname))
                             return
                 if instance._ldap_dn is None:
-                    suffix = getattr(settings, 'LDAP_USER_SUFFIX', '')
+                    suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
                     if not instance.username.endswith(suffix):
                         attributes['cn'] = instance.username + suffix
                     instance._ldap_dn = "cn=%s,%s" % (attributes['cn'], settings.LDAP_SEARCH_BASE)
@@ -243,13 +254,16 @@ class AbstractUser(NoneUser):
                     ad_ldap_user.update_record(instance._ldap_dn, **attributes)
                 if instance._ldap_password is not None:
                     ad_ldap_user.update_password(instance._ldap_dn, instance._ldap_password)
-                for user_group_dn in getattr(settings, 'LDAP_USER_SEARCH_GROUPS', []):
+                user_group_dn = cls.get_user_search_group()
+                if user_group_dn is not None:
                     ad_ldap_user.update_record(user_group_dn, action=MODIFY_ADD, member=instance._ldap_dn)
                 if getattr(settings, 'LDAP_USE_LDAP_GROUPS', False) is True:
-                    for superuser_group_dn in getattr(settings, 'LDAP_SUPERUSER_GROUPS', []):
-                        ad_ldap_user.update_record(superuser_group_dn, action=MODIFY_ADD if instance.is_superuser else MODIFY_DELETE, member=instance._ldap_dn)
-                    for staff_group_dn in getattr(settings, 'LDAP_STAFF_GROUPS', []):
-                        ad_ldap_user.update_record(staff_group_dn, action=MODIFY_ADD if instance.is_staff else MODIFY_DELETE, member=instance._ldap_dn)
+                    superuser_groups_dn = getattr(settings, 'LDAP_SUPERUSER_GROUPS', [])
+                    if len(superuser_groups_dn) > 0:
+                        ad_ldap_user.update_record(superuser_groups_dn[0], action=MODIFY_ADD if instance.is_superuser else MODIFY_DELETE, member=instance._ldap_dn)
+                    staff_groups_dn = getattr(settings, 'LDAP_STAFF_GROUPS', [])
+                    if len(staff_groups_dn) > 0:
+                        ad_ldap_user.update_record(staff_groups_dn[0], action=MODIFY_ADD if instance.is_staff else MODIFY_DELETE, member=instance._ldap_dn)
                     group_list = [grp.name for grp in instance.groups.all()]
                     for group_name, group_dn in getattr(settings, 'LDAP_GROUPS_MAP', {}).items():
                         if group_name in group_list:

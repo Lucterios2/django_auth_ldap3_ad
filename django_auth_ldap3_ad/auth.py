@@ -109,7 +109,7 @@ class LDAP3ADBackend(ModelBackend):
                                               hasattr(settings, 'LDAP_GROUPS_MAP')):
             raise ImproperlyConfigured()
         # LDAP_IGNORED_LOCAL_GROUPS is a list of local Django groups that must be kept.
-        if (hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS') and not (isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list) or (settings.LDAP_IGNORED_LOCAL_GROUPS is None))):
+        if (hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS') and not isinstance(settings.LDAP_IGNORED_LOCAL_GROUPS, list)):
             raise ImproperlyConfigured()
 
         if hasattr(settings, 'LDAP_AUTHENTICATION'):
@@ -149,18 +149,6 @@ class LDAP3ADBackend(ModelBackend):
                         self.attributs[attrib] = self.attributs[attrib][0]
                     else:
                         self.attributs[attrib] = None
-            if hasattr(settings, 'LDAP_USER_SEARCH_GROUPS') and isinstance(settings.LDAP_USER_SEARCH_GROUPS, list) and len(settings.LDAP_USER_SEARCH_GROUPS) > 0:
-                con.search(settings.LDAP_GROUPS_SEARCH_BASE if hasattr(settings, 'LDAP_GROUPS_SEARCH_BASE') else settings.LDAP_SEARCH_BASE,
-                           "(&%s(member=%s))" % (settings.LDAP_GROUPS_SEARCH_FILTER, self.user_dn), attributes=['dn'])
-                if con.result['result'] == 0:
-                    user_in_search_group = False
-                    for resp in con.response:
-                        if resp['dn'] in settings.LDAP_USER_SEARCH_GROUPS:
-                            user_in_search_group = True
-                            break
-                    if not user_in_search_group:
-                        self.user_dn = None
-                        self.attributs = None
 
     """
     Authentication method for Django against AD/LDAP
@@ -247,15 +235,14 @@ class LDAP3ADBackend(ModelBackend):
         self.user.save()
 
     def _clean_old_group_membership(self):
-        if getattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS', []) is not None:
-            logger.debug("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (self.username, ))
-            if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
-                grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
-            else:
-                grps = Group.objects.all()
-            for grp in grps:
-                grp.user_set.remove(self.user)
-                grp.save()
+        logger.debug("AUDIT LOGIN FOR: %s CLEANING OLD GROUP MEMBERSHIP" % (self.username, ))
+        if hasattr(settings, 'LDAP_IGNORED_LOCAL_GROUPS'):
+            grps = Group.objects.exclude(name__in=settings.LDAP_IGNORED_LOCAL_GROUPS)
+        else:
+            grps = Group.objects.all()
+        for grp in grps:
+            grp.user_set.remove(self.user)
+            grp.save()
 
     def _assign_group_superuser_staff(self, connection_ldap):
         # check for groups membership
@@ -359,7 +346,8 @@ class LDAP3ADBackend(ModelBackend):
                         elif self.ldap_engine == 'OpenLDAP':
                             self.set_groups_search_filter_OpenLDAP()
                         logger.debug("AUDIT LOGIN FOR: %s USING LDAP GROUPS" % (username,))
-                        self._clean_old_group_membership()
+                        if getattr(settings, 'LDAP_USE_LDAP_GROUPS_FOR_ADMIN_STAFF_ONLY', False) is False:
+                            self._clean_old_group_membership()
                         self._assign_group_superuser_staff(con)
                         self.user.save()
                 finally:
@@ -369,7 +357,7 @@ class LDAP3ADBackend(ModelBackend):
         return None
 
     def user_can_authenticate(self, user):
-        if getattr(settings, 'LDAP_USER_CHECK_ACTIVE', True):
+        if getattr(settings, 'LDAP_UNCHECK_USER_ACTIVE', True):
             return True
         else:
             return super(LDAP3ADBackend, self).user_can_authenticate(user)
