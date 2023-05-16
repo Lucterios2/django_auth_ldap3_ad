@@ -28,7 +28,7 @@ from ldap3 import MODIFY_REPLACE, MODIFY_ADD, MODIFY_DELETE, MODIFY_INCREMENT
 from ldap3 import FIRST, SIMPLE
 
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save, pre_save
 from django.contrib.auth.signals import user_logged_in
@@ -188,8 +188,11 @@ class AbstractUser(NoneUser):
                 with cls() as ad_ldap_user:
                     username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username')
                     if instance.pk is not None:
-                        CurrentUser = get_user_model()
-                        old_instance = CurrentUser._default_manager.get(pk=instance.pk)
+                        try:
+                            CurrentUser = get_user_model()
+                            old_instance = CurrentUser._default_manager.get(pk=instance.pk)
+                        except ObjectDoesNotExist:
+                            old_instance = instance
                     else:
                         old_instance = instance
                     instance._ldap_dn, instance._ldap_fields = ad_ldap_user.get_user_dn(getattr(old_instance, username_field))
