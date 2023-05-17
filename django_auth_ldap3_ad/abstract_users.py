@@ -239,16 +239,16 @@ class AbstractUser(NoneUser):
                 if instance._ldap_dn is None:
                     suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
                     if not instance.username.endswith(suffix):
-                        attributes['cn'] = instance.username + suffix
-                    instance._ldap_dn = "cn=%s,%s" % (attributes['cn'], settings.LDAP_SEARCH_BASE)
+                        attributes['uid'] = instance.username + suffix
+                    instance._ldap_dn = "uid=%s,%s" % (attributes['uid'], settings.LDAP_SEARCH_BASE)
                     if not ad_ldap_user.create_record(instance._ldap_dn, **attributes):
                         cls.disabled_user(instance)
                         logger.warning(" > User %s not create in directory : disabled " % (instance.username, ))
                         return
-                    if attributes['cn'] != instance.username:
+                    if attributes['uid'] != instance.username:
                         cls._disconnect_to_signals()
                         try:
-                            instance.username = attributes['cn']
+                            instance.username = attributes['uid']
                             instance.save()
                         finally:
                             cls._connect_to_signals()
