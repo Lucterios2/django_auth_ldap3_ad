@@ -199,9 +199,15 @@ class AbstractUser(NoneUser):
                     instance._ldap_password = instance._password
                     if instance._ldap_dn is not None:
                         instance.username = instance._ldap_fields['username']
-                    logger.debug("**** before_save_user(%s) -> %s" % (instance.username, instance._ldap_dn))
+                        username_suffix = ''
+                        while (CurrentUser._default_manager.filter(username="%s%s" % (instance.username, username_suffix)).exclude(pk=instance.pk).count() > 0):
+                            if username_suffix == '':
+                                username_suffix = 0
+                            username_suffix += 1
+                        instance.username += str(username_suffix)
+                        logger.debug("**** before_save_user(%s) -> %s" % (instance.username, instance._ldap_dn))
             except AttributeError as err:
-                logger.error("**** before_save_user(%s) - error = %s" % (instance.username, err))
+                logger.exception("**** before_save_user(%s) - error = %s" % (instance.username, err))
 
     @classmethod
     def disabled_user(cls, instance):
@@ -228,52 +234,59 @@ class AbstractUser(NoneUser):
     def after_save_user(cls, sender, instance, **kwargs):
         if hasattr(instance, "_ldap_dn") and hasattr(instance, "_ldap_fields"):
             with cls() as ad_ldap_user:
-                attributes = {}
-                for fieldname, attrib in settings.LDAP_ATTRIBUTES_MAP.items():
-                    if (fieldname not in instance._ldap_fields) or (getattr(instance, fieldname) != instance._ldap_fields[fieldname]):
-                        attributes[attrib] = getattr(instance, fieldname)
-                        if (getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username') == fieldname) and (attributes[attrib] in ('', None)):
+                try:
+                    attributes = {}
+                    for fieldname, attrib in settings.LDAP_ATTRIBUTES_MAP.items():
+                        if (fieldname not in instance._ldap_fields) or (getattr(instance, fieldname) != instance._ldap_fields[fieldname]):
+                            attributes[attrib] = getattr(instance, fieldname)
+                            if (getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username') == fieldname) and (attributes[attrib] in ('', None)):
+                                cls.disabled_user(instance)
+                                logger.warning(" > User %s has not field %s" % (instance.username, fieldname))
+                                return
+                    if instance._ldap_dn is None:
+                        suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
+                        ldap_map = getattr(settings, 'LDAP_ATTRIBUTES_MAP', {})
+                        ldapident = ldap_map['username'] if 'username' in ldap_map else 'uid'
+                        if (len(suffix) > 0) and not suffix[0].isalpha() and (suffix[0] in instance.username) and (len(instance.username.split(suffix[0])[-1]) > 0):
+                            attributes[ldapident] = instance.username
+                        elif not instance.username.endswith(suffix):
+                            attributes[ldapident] = instance.username + suffix
+                        instance._ldap_dn = "%s=%s,%s" % (ldapident, attributes[ldapident], settings.LDAP_SEARCH_BASE)
+                        if not ad_ldap_user.create_record(instance._ldap_dn, **attributes):
                             cls.disabled_user(instance)
-                            logger.warning(" > User %s has not field %s" % (instance.username, fieldname))
+                            logger.warning(" > User %s not create in directory : disabled " % (instance.username, ))
                             return
-                if instance._ldap_dn is None:
-                    suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
-                    if not instance.username.endswith(suffix):
-                        attributes['uid'] = instance.username + suffix
-                    instance._ldap_dn = "uid=%s,%s" % (attributes['uid'], settings.LDAP_SEARCH_BASE)
-                    if not ad_ldap_user.create_record(instance._ldap_dn, **attributes):
-                        cls.disabled_user(instance)
-                        logger.warning(" > User %s not create in directory : disabled " % (instance.username, ))
-                        return
-                    if attributes['uid'] != instance.username:
-                        cls._disconnect_to_signals()
-                        try:
-                            instance.username = attributes['uid']
-                            instance.save()
-                        finally:
-                            cls._connect_to_signals()
-                    logger.info(" > User %s created " % (instance.username, ))
-                else:
-                    ad_ldap_user.update_record(instance._ldap_dn, **attributes)
-                if instance._ldap_password is not None:
-                    ad_ldap_user.update_password(instance._ldap_dn, instance._ldap_password)
-                user_group_dn = cls.get_user_search_group()
-                if user_group_dn is not None:
-                    ad_ldap_user.update_record(user_group_dn, action=MODIFY_ADD, member=instance._ldap_dn)
-                if getattr(settings, 'LDAP_USE_LDAP_GROUPS', False) is True:
-                    superuser_groups_dn = getattr(settings, 'LDAP_SUPERUSER_GROUPS', [])
-                    if len(superuser_groups_dn) > 0:
-                        ad_ldap_user.update_record(superuser_groups_dn[0], action=MODIFY_ADD if instance.is_superuser else MODIFY_DELETE, member=instance._ldap_dn)
-                    staff_groups_dn = getattr(settings, 'LDAP_STAFF_GROUPS', [])
-                    if len(staff_groups_dn) > 0:
-                        ad_ldap_user.update_record(staff_groups_dn[0], action=MODIFY_ADD if instance.is_staff else MODIFY_DELETE, member=instance._ldap_dn)
-                    group_list = [grp.name for grp in instance.groups.all()]
-                    for group_name, group_dn in getattr(settings, 'LDAP_GROUPS_MAP', {}).items():
-                        if group_name in group_list:
-                            ad_ldap_user.update_record(group_dn, action=MODIFY_ADD, member=instance._ldap_dn)
-                        else:
-                            ad_ldap_user.update_record(group_dn, action=MODIFY_DELETE, member=instance._ldap_dn)
-                logger.debug("**** after_save_user(%s) -> %s = %s" % (instance.username, instance._ldap_dn, attributes))
+                        if attributes[ldapident] != instance.username:
+                            cls._disconnect_to_signals()
+                            try:
+                                instance.username = attributes[ldapident]
+                                instance.save()
+                            finally:
+                                cls._connect_to_signals()
+                        logger.info(" > User %s created " % (instance.username, ))
+                    else:
+                        ad_ldap_user.update_record(instance._ldap_dn, **attributes)
+                    if instance._ldap_password is not None:
+                        ad_ldap_user.update_password(instance._ldap_dn, instance._ldap_password)
+                    user_group_dn = cls.get_user_search_group()
+                    if user_group_dn is not None:
+                        ad_ldap_user.update_record(user_group_dn, action=MODIFY_ADD, member=instance._ldap_dn)
+                    if getattr(settings, 'LDAP_USE_LDAP_GROUPS', False) is True:
+                        superuser_groups_dn = getattr(settings, 'LDAP_SUPERUSER_GROUPS', [])
+                        if len(superuser_groups_dn) > 0:
+                            ad_ldap_user.update_record(superuser_groups_dn[0], action=MODIFY_ADD if instance.is_superuser else MODIFY_DELETE, member=instance._ldap_dn)
+                        staff_groups_dn = getattr(settings, 'LDAP_STAFF_GROUPS', [])
+                        if len(staff_groups_dn) > 0:
+                            ad_ldap_user.update_record(staff_groups_dn[0], action=MODIFY_ADD if instance.is_staff else MODIFY_DELETE, member=instance._ldap_dn)
+                        group_list = [grp.name for grp in instance.groups.all()]
+                        for group_name, group_dn in getattr(settings, 'LDAP_GROUPS_MAP', {}).items():
+                            if group_name in group_list:
+                                ad_ldap_user.update_record(group_dn, action=MODIFY_ADD, member=instance._ldap_dn)
+                            else:
+                                ad_ldap_user.update_record(group_dn, action=MODIFY_DELETE, member=instance._ldap_dn)
+                    logger.debug("**** after_save_user(%s) -> %s = %s" % (instance.username, instance._ldap_dn, attributes))
+                except Exception:
+                    logger.exception("**** after_save_user(%s)" % instance.username)
 
     @classmethod
     def connect_to_signals(cls):
