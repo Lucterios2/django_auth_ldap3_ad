@@ -67,6 +67,10 @@ def create_password():
     return passwd
 
 
+class NoPermissionError(Exception):
+    pass
+
+
 class LDAP3ADBackend(ModelBackend):
     """
     Authenticate against Active directory or other LDAP server
@@ -195,9 +199,11 @@ class LDAP3ADBackend(ModelBackend):
             username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username')
             lookup_username = self.attributs[settings.LDAP_ATTRIBUTES_MAP[username_field]]
             self.user = user_model.objects.filter(**{
-                "is_active": True,
                 "{0}__iexact".format(username_field): lookup_username
             }).order_by('-last_login').first()
+            if (self.user is not None) and (self.user.is_active is False):
+                self.user = None
+                raise NoPermissionError("user not active")
             if self.user is None:
                 self.user = user_model()
         except user_model.DoesNotExist:
@@ -355,6 +361,8 @@ class LDAP3ADBackend(ModelBackend):
                             self._clean_old_group_membership()
                         self._assign_group_superuser_staff(con)
                         self.user.save()
+                except NoPermissionError:
+                    return None
                 finally:
                     con.unbind()
                 self._assign_mingroup_sessioninfo()
