@@ -198,13 +198,19 @@ class AbstractUser(NoneUser):
                     instance._ldap_dn, instance._ldap_fields = ad_ldap_user.get_user_dn(getattr(old_instance, username_field))
                     instance._ldap_password = instance._password
                     if instance._ldap_dn is not None:
+                        suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
+                        if (len(suffix) > 0) and not suffix[0].isalpha() and (suffix[0] in instance.username) and (len(instance.username.split(suffix[0])[-1]) > 0):
+                            suffix = suffix[0] + instance.username.split(suffix[0])[-1]
+                            instance.username = instance.username[:-1 * len(suffix)]
+                        elif not instance.username.endswith(suffix):
+                            instance.username = instance.username[:-1 * len(suffix)]
                         instance.username = instance._ldap_fields['username']
                         username_suffix = ''
-                        while (CurrentUser._default_manager.filter(username="%s%s" % (instance.username, username_suffix)).exclude(pk=instance.pk).count() > 0):
+                        while (CurrentUser._default_manager.filter(username="%s%s%s" % (instance.username, username_suffix, suffix)).exclude(pk=instance.pk).count() > 0):
                             if username_suffix == '':
                                 username_suffix = 0
                             username_suffix += 1
-                        instance.username += str(username_suffix)
+                        instance.username += str(username_suffix) + suffix
                         logger.debug("**** before_save_user(%s) -> %s" % (instance.username, instance._ldap_dn))
             except AttributeError as err:
                 logger.exception("**** before_save_user(%s) - error = %s" % (instance.username, err))
@@ -244,25 +250,13 @@ class AbstractUser(NoneUser):
                                 logger.warning(" > User %s has not field %s" % (instance.username, fieldname))
                                 return
                     if instance._ldap_dn is None:
-                        suffix = getattr(settings, 'LDAP_WRITTEN_BY_DJANGO_USER_SUFFIX', '')
                         ldap_map = getattr(settings, 'LDAP_ATTRIBUTES_MAP', {})
                         ldapident = ldap_map['username'] if 'username' in ldap_map else 'uid'
-                        if (len(suffix) > 0) and not suffix[0].isalpha() and (suffix[0] in instance.username) and (len(instance.username.split(suffix[0])[-1]) > 0):
-                            attributes[ldapident] = instance.username
-                        elif not instance.username.endswith(suffix):
-                            attributes[ldapident] = instance.username + suffix
                         instance._ldap_dn = "%s=%s,%s" % (ldapident, attributes[ldapident], settings.LDAP_SEARCH_BASE)
                         if not ad_ldap_user.create_record(instance._ldap_dn, **attributes):
                             cls.disabled_user(instance)
                             logger.warning(" > User %s not create in directory : disabled " % (instance.username, ))
                             return
-                        if attributes[ldapident] != instance.username:
-                            cls._disconnect_to_signals()
-                            try:
-                                instance.username = attributes[ldapident]
-                                instance.save()
-                            finally:
-                                cls._connect_to_signals()
                         logger.info(" > User %s created " % (instance.username, ))
                     else:
                         ad_ldap_user.update_record(instance._ldap_dn, **attributes)
