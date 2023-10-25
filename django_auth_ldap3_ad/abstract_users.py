@@ -186,10 +186,10 @@ class AbstractUser(NoneUser):
         if not hasattr(instance, "_ldapauth"):
             try:
                 with cls() as ad_ldap_user:
+                    CurrentUser = get_user_model()
                     username_field = getattr(settings, 'LDAP_USER_MODEL_USERNAME_FIELD', 'username')
                     if instance.pk is not None:
                         try:
-                            CurrentUser = get_user_model()
                             old_instance = CurrentUser._default_manager.get(pk=instance.pk)
                         except ObjectDoesNotExist:
                             old_instance = instance
